@@ -34,7 +34,7 @@ prost = "0.13"
 prost-types = "0.13"
 
 # Auth
-jsonwebtoken = "9"
+jsonwebtoken = { version = "10", features = ["aws_lc_rs"] }
 argon2 = "0.5"
 rand = "0.9"
 getrandom = "0.3"
