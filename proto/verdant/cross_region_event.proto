@@ -1,0 +1,35 @@
+syntax = "proto3";
+
+package verdant;
+
+// Envelope for cross-region events relayed over NATS. Wraps the
+// existing in-region Redis pub/sub payload verbatim so we don't
+// have to reshape every publisher — the bridge on the receiving
+// side decodes this, drops its own-origin loopback, and re-emits
+// the inner `payload` bytes onto the local Redis topic named by
+// `subject`.
+//
+// Subject maps 1:1 to the Redis topic name (e.g. "channel:123",
+// "presence:srv-9"). NATS subject prefix `verdant.xr.` is added
+// at the transport layer, not in this envelope.
+message CrossRegionEvent {
+  // DO region slug of the app-server that originated the event
+  // (matches VERDANT_REGION env, e.g. "nyc1", "ams3"). The
+  // receiving bridge drops messages where this equals its own
+  // region so in-region fan-out doesn't ping-pong through NATS.
+  string origin_region = 1;
+
+  // Unix epoch millis at publish time on the originating server.
+  // Used for staleness checks / ordering diagnostics, not routing.
+  int64 ts_ms = 2;
+
+  // Redis topic name the publisher used locally. The receiving
+  // bridge republishes `payload` onto this same topic in the
+  // destination region's Redis.
+  string subject = 3;
+
+  // Opaque payload bytes — same bytes the publisher wrote to
+  // Redis. Usually a prost-encoded ws/cache message, but the
+  // bridge is payload-agnostic.
+  bytes payload = 4;
+}

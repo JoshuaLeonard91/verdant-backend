@@ -1,0 +1,914 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Verdant - Desktop Chat for Small Communities</title>
+  <meta name="description" content="Verdant is a desktop-first chat app for small communities, private servers, roles, channels, DMs, feeds, and self-hosted bots.">
+  <meta name="robots" content="index,follow,max-image-preview:large">
+  <link rel="canonical" href="https://verdant.chat/">
+  <meta name="theme-color" content="#050806">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Verdant">
+  <meta property="og:url" content="https://verdant.chat/">
+  <meta property="og:title" content="Verdant - Desktop Chat for Small Communities">
+  <meta property="og:description" content="A desktop-first chat app with servers, channels, roles, feeds, and self-hosted bot automation.">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="Verdant - Desktop Chat for Small Communities">
+  <meta name="twitter:description" content="Desktop chat for servers, channels, roles, feeds, and self-hosted bots.">
+  <link rel="icon" href="/assets/neon-tree-small.svg" type="image/svg+xml">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    :root {
+      color-scheme: dark;
+      --bg: #050806;
+      --panel: #0b0f0d;
+      --panel-soft: #101511;
+      --text: #edf3ee;
+      --text-mid: #a6b1aa;
+      --text-dim: #67736c;
+      --line: rgba(237, 243, 238, 0.12);
+      --line-strong: rgba(237, 243, 238, 0.22);
+      --accent: #16c784;
+      --accent-quiet: rgba(22, 199, 132, 0.14);
+      --amber: #f0b94c;
+      --cyan: #30d3d0;
+      --shadow: rgba(0, 0, 0, 0.42);
+      --font: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      min-width: 320px;
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+      -webkit-font-smoothing: antialiased;
+      text-rendering: optimizeLegibility;
+    }
+
+    a { color: inherit; text-decoration: none; }
+    a:hover { color: var(--accent); }
+    img { max-width: 100%; display: block; }
+
+    .shell {
+      width: min(1180px, calc(100% - 40px));
+      margin: 0 auto;
+    }
+
+    .nav {
+      position: fixed;
+      z-index: 10;
+      top: 0;
+      left: 0;
+      right: 0;
+      border-bottom: 1px solid rgba(237, 243, 238, 0.08);
+      background: rgba(5, 8, 6, 0.76);
+      backdrop-filter: blur(18px);
+    }
+
+    .nav-inner {
+      height: 64px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+    }
+
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.65rem;
+      font-weight: 800;
+      letter-spacing: 0;
+    }
+
+    .links {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      color: var(--text-mid);
+      font-size: 0.9rem;
+      font-weight: 650;
+    }
+
+    .nav-cta {
+      border: 1px solid var(--line-strong);
+      border-radius: 8px;
+      padding: 0.48rem 0.8rem;
+      color: var(--text);
+    }
+
+    .hero {
+      min-height: 82vh;
+      padding: 7rem 0 2.25rem;
+      display: flex;
+      align-items: flex-end;
+      background: linear-gradient(180deg, #070a08 0%, var(--bg) 100%);
+      border-bottom: 1px solid var(--line);
+    }
+
+    .hero-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 0.82fr) minmax(440px, 1.18fr);
+      align-items: end;
+      gap: 2rem;
+    }
+
+    .hero-copy {
+      max-width: 640px;
+      padding-bottom: 2rem;
+    }
+
+    .eyebrow {
+      margin: 0 0 1rem;
+      color: var(--accent);
+      font-size: 0.78rem;
+      font-weight: 800;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+    }
+
+    h1 {
+      margin: 0;
+      max-width: 9ch;
+      font-size: clamp(3.8rem, 8vw, 7.6rem);
+      line-height: 0.92;
+      letter-spacing: 0;
+    }
+
+    .lead {
+      margin: 1.25rem 0 0;
+      max-width: 38rem;
+      color: var(--text-mid);
+      font-size: clamp(1rem, 1.6vw, 1.22rem);
+      line-height: 1.65;
+    }
+
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      margin-top: 1.75rem;
+    }
+
+    .button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 2.75rem;
+      border-radius: 8px;
+      padding: 0 1rem;
+      font-size: 0.92rem;
+      font-weight: 650;
+      border: 1px solid var(--line-strong);
+      color: var(--text);
+      background: rgba(5, 8, 6, 0.42);
+      -webkit-font-smoothing: antialiased;
+      text-rendering: geometricPrecision;
+      white-space: nowrap;
+    }
+
+    .button.primary {
+      border-color: transparent;
+      color: #02110b;
+      background: var(--accent);
+    }
+
+    .note {
+      margin-top: 0.7rem;
+      color: var(--text-dim);
+      font-size: 0.82rem;
+    }
+
+    .product-preview {
+      height: min(53vh, 520px);
+      min-height: 390px;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #0b0d0f;
+      box-shadow: 0 1.5rem 4rem var(--shadow);
+      display: grid;
+      grid-template-columns: 15.8rem minmax(0, 1fr) 11rem;
+      grid-template-rows: 2.35rem minmax(0, 1fr) 3.6rem;
+    }
+
+    .preview-top {
+      grid-column: 1 / -1;
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      align-items: center;
+      border-bottom: 1px solid var(--line);
+      color: var(--text-dim);
+      font-size: 0.75rem;
+      font-weight: 750;
+      letter-spacing: 0.02em;
+      background: #0c0f10;
+    }
+
+    .preview-status {
+      justify-self: end;
+      width: 0.5rem;
+      height: 0.5rem;
+      margin-right: 1rem;
+      border-radius: 999px;
+      background: #38e277;
+      box-shadow: 0 0 1rem rgba(56, 226, 119, 0.65);
+    }
+
+    .rail-tile,
+    .rail-avatar {
+      width: 2.6rem;
+      aspect-ratio: 1;
+      border-radius: 8px;
+      background: #111614;
+      border: 1px solid var(--line);
+    }
+
+    .rail-tile.active {
+      position: relative;
+      background: var(--accent);
+    }
+
+    .rail-tile.active::before {
+      content: "";
+      position: absolute;
+      left: -0.55rem;
+      top: 0.35rem;
+      bottom: 0.35rem;
+      width: 0.18rem;
+      border-radius: 999px;
+      background: var(--accent);
+    }
+
+    .bottom-rail {
+      grid-column: 1 / -1;
+      grid-row: 3;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      padding: 0.42rem 0.55rem;
+      border-top: 1px solid var(--line);
+      background: #08090b;
+    }
+
+    .bottom-left,
+    .bottom-actions {
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+      min-width: 0;
+    }
+
+    .rail-avatar {
+      background-image: url("/assets/neon-tree-small.svg");
+      background-size: cover;
+      background-position: center;
+      border-color: rgba(22, 199, 132, 0.18);
+    }
+
+    .rail-tile.text,
+    .rail-tile.plus,
+    .rail-tile.arrow {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-mid);
+      font-size: 0.84rem;
+      font-weight: 800;
+    }
+
+    .channel-pane {
+      border-right: 1px solid var(--line);
+      background: #101214;
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      min-width: 0;
+    }
+
+    .server-card {
+      min-height: 7.2rem;
+      padding: 0.9rem;
+      border-bottom: 1px solid var(--line);
+      background:
+        linear-gradient(180deg, rgba(127, 59, 210, 0.42), transparent 64%),
+        #111316;
+    }
+
+    .server-avatar {
+      width: 2.6rem;
+      aspect-ratio: 1;
+      border-radius: 8px;
+      background: #d8d8c8;
+      border: 2px solid rgba(255, 255, 255, 0.12);
+      margin-top: 2rem;
+    }
+
+    .server-name {
+      margin-top: 0.35rem;
+      font-size: 0.9rem;
+      font-weight: 850;
+    }
+
+    .channel-list {
+      padding: 1rem 0.8rem;
+    }
+
+    .section-title {
+      color: var(--text-dim);
+      font-size: 0.68rem;
+      font-weight: 850;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      margin: 0 0 0.55rem;
+    }
+
+    .channel {
+      min-height: 2.1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.55rem;
+      color: var(--text-mid);
+      font-size: 0.9rem;
+      font-weight: 750;
+      border-radius: 6px;
+      padding: 0 0.55rem;
+      margin-bottom: 0.35rem;
+    }
+
+    .channel.active {
+      color: var(--text);
+      background: rgba(237, 243, 238, 0.07);
+    }
+
+    .channel::before {
+      content: "#";
+      color: var(--text-dim);
+      font-weight: 800;
+    }
+
+    .mini-profile {
+      border-top: 1px solid var(--line);
+      padding: 0.7rem;
+      display: flex;
+      align-items: center;
+      gap: 0.55rem;
+      background: #0a0c0d;
+    }
+
+    .mini-avatar,
+    .msg-avatar {
+      width: 2.2rem;
+      aspect-ratio: 1;
+      border-radius: 8px;
+      background: #d8d8c8;
+    }
+
+    .mini-profile strong,
+    .member strong {
+      display: block;
+      font-size: 0.82rem;
+    }
+
+    .mini-profile span,
+    .member span {
+      display: block;
+      color: var(--text-dim);
+      font-size: 0.72rem;
+    }
+
+    .chat-pane {
+      min-width: 0;
+      background: #181a1f;
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+    }
+
+    .chat-header {
+      min-height: 3rem;
+      display: flex;
+      align-items: center;
+      gap: 0.7rem;
+      padding: 0 1rem;
+      border-bottom: 1px solid var(--line);
+      color: var(--text);
+      font-weight: 850;
+    }
+
+    .chat-header span {
+      color: var(--text-dim);
+      font-weight: 650;
+    }
+
+    .messages {
+      display: grid;
+      align-content: end;
+      gap: 1rem;
+      padding: 1rem;
+    }
+
+    .message {
+      display: grid;
+      grid-template-columns: 2.4rem minmax(0, 1fr);
+      gap: 0.7rem;
+      align-items: start;
+    }
+
+    .message strong {
+      color: #9b6cff;
+      font-size: 0.9rem;
+    }
+
+    .message small {
+      color: var(--text-dim);
+      font-size: 0.74rem;
+      margin-left: 0.35rem;
+    }
+
+    .message p {
+      margin: 0.18rem 0 0;
+      color: var(--text);
+      font-size: 0.92rem;
+      line-height: 1.45;
+    }
+
+    .composer {
+      margin: 0 1rem 1rem;
+      min-height: 3rem;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      padding: 0 0.9rem;
+      color: var(--text-dim);
+      background: #111318;
+    }
+
+    .member-pane {
+      border-left: 1px solid var(--line);
+      background: #08090b;
+      padding: 1rem;
+    }
+
+    .member {
+      display: flex;
+      align-items: center;
+      gap: 0.65rem;
+      min-height: 3.6rem;
+      border-radius: 8px;
+      padding: 0.45rem;
+      background: rgba(22, 199, 132, 0.1);
+    }
+
+    .member .mini-avatar {
+      background: var(--accent);
+    }
+
+    .section-title.spaced {
+      margin-top: 1.2rem;
+    }
+
+    .signal-bar {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 1px;
+      margin-top: 2.4rem;
+      border: 1px solid var(--line);
+      background: var(--line);
+      max-width: 820px;
+    }
+
+    .signal {
+      min-height: 6.25rem;
+      padding: 1.1rem;
+      background: rgba(8, 12, 9, 0.82);
+    }
+
+    .signal strong {
+      display: block;
+      font-size: 0.86rem;
+      color: var(--text);
+    }
+
+    .signal span {
+      display: block;
+      margin-top: 0.4rem;
+      color: var(--text-dim);
+      font-size: 0.82rem;
+      line-height: 1.45;
+    }
+
+    main section {
+      padding: 4.5rem 0;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .section-heading {
+      max-width: 680px;
+      margin-bottom: 2rem;
+    }
+
+    .section-heading h2 {
+      margin: 0;
+      font-size: clamp(1.75rem, 3vw, 2.55rem);
+      line-height: 1.08;
+      letter-spacing: 0;
+    }
+
+    .section-heading p {
+      margin: 0.9rem 0 0;
+      color: var(--text-mid);
+      font-size: 1rem;
+      line-height: 1.65;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 1rem;
+    }
+
+    .card {
+      min-height: 15rem;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 1.2rem;
+      background: var(--panel);
+      box-shadow: 0 1rem 2.5rem var(--shadow);
+    }
+
+    .card-label {
+      display: inline-flex;
+      margin-bottom: 1rem;
+      color: var(--accent);
+      font-size: 0.76rem;
+      font-weight: 850;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    .card h3 {
+      margin: 0;
+      font-size: 1.1rem;
+      line-height: 1.25;
+    }
+
+    .card p {
+      margin: 0.85rem 0 0;
+      color: var(--text-mid);
+      font-size: 0.92rem;
+      line-height: 1.6;
+    }
+
+    .flow {
+      display: grid;
+      grid-template-columns: 0.9fr 1.1fr;
+      gap: 2rem;
+      align-items: start;
+    }
+
+    .stack {
+      border-left: 2px solid var(--accent);
+      padding-left: 1.25rem;
+    }
+
+    .stack p {
+      margin: 0 0 1.2rem;
+      color: var(--text-mid);
+      line-height: 1.65;
+    }
+
+    .table {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      overflow: hidden;
+      background: var(--panel);
+    }
+
+    .row {
+      display: grid;
+      grid-template-columns: 0.9fr 1.1fr;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .row:last-child { border-bottom: 0; }
+
+    .cell {
+      min-width: 0;
+      padding: 1rem;
+      color: var(--text-mid);
+      font-size: 0.9rem;
+      line-height: 1.5;
+    }
+
+    .cell:first-child {
+      color: var(--text);
+      font-weight: 750;
+      border-right: 1px solid var(--line);
+    }
+
+    .download {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1.5rem;
+      border: 1px solid var(--line-strong);
+      border-radius: 8px;
+      padding: 1.2rem;
+      background: var(--panel-soft);
+    }
+
+    .download p {
+      margin: 0.35rem 0 0;
+      color: var(--text-mid);
+      line-height: 1.5;
+    }
+
+    .download h2 {
+      margin: 0;
+      font-size: 1.35rem;
+    }
+
+    footer {
+      padding: 2.5rem 0;
+      color: var(--text-dim);
+      font-size: 0.85rem;
+    }
+
+    .footer-inner {
+      display: flex;
+      justify-content: space-between;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+
+    .footer-links {
+      display: flex;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+
+    @media (max-width: 820px) {
+      .links { gap: 0.7rem; font-size: 0.82rem; }
+      .hero {
+        min-height: 78vh;
+        align-items: stretch;
+      }
+      .hero-grid {
+        grid-template-columns: 1fr;
+      }
+      .product-preview {
+        min-height: 360px;
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-rows: 2.35rem minmax(0, 1fr) 3.5rem;
+      }
+      .channel-pane,
+      .member-pane {
+        display: none;
+      }
+      .signal-bar,
+      .grid,
+      .flow {
+        grid-template-columns: 1fr;
+      }
+      .download {
+        align-items: stretch;
+        flex-direction: column;
+      }
+      .download .button {
+        width: 100%;
+      }
+    }
+
+    @media (max-width: 540px) {
+      .shell { width: min(100% - 28px, 1180px); }
+      .nav-inner { height: 58px; }
+      .links a:not(.nav-cta) { display: none; }
+      .hero { padding-top: 5.5rem; }
+      h1 { font-size: 3.4rem; }
+      main section { padding: 3.4rem 0; }
+      .row { grid-template-columns: 1fr; }
+      .cell:first-child {
+        border-right: 0;
+        border-bottom: 1px solid var(--line);
+      }
+    }
+  </style>
+  <link rel="stylesheet" href="/assets/site.css">
+</head>
+<body>
+  <header class="nav">
+    <div class="shell nav-inner">
+      <a class="brand" href="/" aria-label="Verdant home">
+        <img class="brand-icon" src="/assets/neon-tree-small.svg" alt="" aria-hidden="true">
+        <span>Verdant</span>
+      </a>
+      <nav class="links" aria-label="Main navigation">
+        <a href="/docs/bots">Bot SDK</a>
+        <a href="/status">Status</a>
+      </nav>
+    </div>
+  </header>
+
+  <section class="hero">
+    <div class="shell hero-grid">
+      <div class="hero-copy">
+        <p class="eyebrow">Desktop chat in soft launch</p>
+        <h1>Verdant</h1>
+        <p class="lead">
+          A small-community chat app with servers, channels, roles, feeds, DMs, and self-hosted bots. Built for people who want a quieter place to gather without giving up the tools they expect.
+        </p>
+        <div class="actions">
+          <a class="button primary" href="mailto:support@verdant.chat">Request access</a>
+          <a class="button" href="/docs/bots">Bot SDK docs</a>
+        </div>
+        <p class="note">Windows 10+ for early access. Email verification is required before entering the app.</p>
+        <div class="signal-bar" aria-label="Verdant product highlights">
+          <div class="signal">
+            <strong>Servers and DMs</strong>
+            <span>Channels for groups, direct messages for one-to-one conversations.</span>
+          </div>
+          <div class="signal">
+            <strong>Roles and permissions</strong>
+            <span>Keep channels, invites, bots, and moderation behind explicit access rules.</span>
+          </div>
+          <div class="signal">
+            <strong>Feeds and bots</strong>
+            <span>Post release notes, announcements, and formatted cards from your own automation.</span>
+          </div>
+        </div>
+      </div>
+      <div class="product-preview" aria-label="Verdant desktop chat preview">
+        <div class="preview-top">
+          <span></span>
+          <span>Verdant</span>
+          <span class="preview-status" aria-hidden="true"></span>
+        </div>
+        <aside class="channel-pane" aria-hidden="true">
+          <div class="server-card">
+            <div class="server-avatar"></div>
+            <div class="server-name">Verdant</div>
+          </div>
+          <div class="channel-list">
+            <p class="section-title">Announcements</p>
+            <div class="channel">change-logs</div>
+            <p class="section-title">Text channels</p>
+            <div class="channel active">general</div>
+            <div class="channel">bot-setup</div>
+            <p class="section-title">Voice channels</p>
+            <div class="channel">general</div>
+          </div>
+          <div class="mini-profile">
+            <div class="mini-avatar"></div>
+            <div>
+              <strong>Josh</strong>
+              <span>Online</span>
+            </div>
+          </div>
+        </aside>
+        <section class="chat-pane" aria-hidden="true">
+          <div class="chat-header"># general <span>Welcome to #general</span></div>
+          <div class="messages">
+            <div class="message">
+              <div class="msg-avatar"></div>
+              <div>
+                <strong>Josh</strong><small>Today at 1:00 AM</small>
+                <p>boop</p>
+              </div>
+            </div>
+            <div class="message">
+              <div class="msg-avatar"></div>
+              <div>
+                <strong>Verdant Release Bot</strong><small>Today at 1:04 AM</small>
+                <p>v0.0.258 is live. Release notes are posted in Change Logs.</p>
+              </div>
+            </div>
+          </div>
+          <div class="composer">Message general</div>
+        </section>
+        <aside class="member-pane" aria-hidden="true">
+          <p class="section-title">Online - 1</p>
+          <div class="member">
+            <div class="mini-avatar"></div>
+            <div>
+              <strong>Josh</strong>
+              <span>Owner</span>
+            </div>
+          </div>
+          <p class="section-title spaced">Bots - 1</p>
+          <div class="member">
+            <div class="mini-avatar"></div>
+            <div>
+              <strong>Verdant Release Bot</strong>
+              <span>Online</span>
+            </div>
+          </div>
+        </aside>
+        <div class="bottom-rail" aria-hidden="true">
+          <div class="bottom-left">
+            <span class="rail-tile active"></span>
+            <span class="rail-tile"></span>
+            <span class="rail-avatar"></span>
+            <span class="rail-tile text">T</span>
+          </div>
+          <div class="bottom-actions">
+            <span class="rail-tile plus">+</span>
+            <span class="rail-tile arrow">&rarr;</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <main>
+    <section>
+      <div class="shell">
+        <div class="section-heading">
+          <h2>A familiar shape, cut down to the parts that matter.</h2>
+          <p>
+            Verdant is not a public feed or algorithmic social app. It is organized chat: servers, text channels, voice channels, member lists, role colors, uploads, and notification controls.
+          </p>
+        </div>
+        <div class="grid">
+          <article class="card">
+            <span class="card-label">Community</span>
+            <h3>Start with one server and grow carefully.</h3>
+            <p>Create channels, assign roles, manage invites, and keep private spaces visible only to people who should be there.</p>
+          </article>
+          <article class="card">
+            <span class="card-label">Desktop</span>
+            <h3>A native app first, not a browser tab you lose.</h3>
+            <p>The Windows desktop client is the first public target. The website stays focused on discovery, status, documentation, and support.</p>
+          </article>
+          <article class="card">
+            <span class="card-label">Automation</span>
+            <h3>Bots are self-hosted and permissioned.</h3>
+            <p>Use bot tokens, scoped APIs, rich feed cards, and channel cards without handing Verdant your automation secrets.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="shell flow">
+        <div class="section-heading">
+          <h2>Feeds for announcements, channels for discussion.</h2>
+          <p>
+            Announcements can be composed as structured cards with headings, text, tables, images, dividers, and buttons. A release bot can post the formatted note, then link people into a text channel for conversation.
+          </p>
+        </div>
+        <div class="table" role="table" aria-label="Verdant automation surfaces">
+          <div class="row" role="row">
+            <div class="cell" role="cell">Release notes</div>
+            <div class="cell" role="cell">Post to a feed with a rich card and a channel button for discussion.</div>
+          </div>
+          <div class="row" role="row">
+            <div class="cell" role="cell">Moderation helpers</div>
+            <div class="cell" role="cell">Connect over the bot gateway when the bot needs to receive events.</div>
+          </div>
+          <div class="row" role="row">
+            <div class="cell" role="cell">Status cards</div>
+            <div class="cell" role="cell">Send clean, formatted channel cards from a self-hosted service.</div>
+          </div>
+          <div class="row" role="row">
+            <div class="cell" role="cell">External hooks</div>
+            <div class="cell" role="cell">Validate incoming webhooks in your own bot, then post through Verdant's scoped API.</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="shell flow">
+        <div class="stack">
+          <p><strong>Soft launch posture:</strong> account creation is open, but email verification is required before the app unlocks.</p>
+          <p><strong>Privacy posture:</strong> the app stores what it needs for chat features, file delivery, security, and abuse prevention.</p>
+          <p><strong>Platform posture:</strong> Windows is the first public desktop target. Other desktop and mobile paths can come later without making the website pretend they exist today.</p>
+        </div>
+        <div class="download">
+          <div>
+            <h2>Soft launch access</h2>
+            <p>Existing desktop installs receive production updates through the built-in updater. New access is handled through the soft launch channel.</p>
+          </div>
+          <a class="button primary" href="mailto:support@verdant.chat">Contact Verdant</a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="shell footer-inner">
+      <span>&copy; 2026 Verdant</span>
+      <div class="footer-links">
+        <a href="/docs/bots">Bot SDK</a>
+        <a href="/status">Status</a>
+        <a href="/privacy">Privacy</a>
+        <a href="/tos">Terms</a>
+      </div>
+    </div>
+  </footer>
+</body>
+</html>

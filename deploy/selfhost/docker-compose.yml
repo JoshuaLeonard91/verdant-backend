@@ -1,0 +1,157 @@
+name: ${COMPOSE_PROJECT_NAME:-selfhost-chat}
+
+services:
+  app:
+    build:
+      context: ../..
+      dockerfile: server-rs/Dockerfile
+    env_file:
+      - .env
+    environment:
+      RS_PORT: ${RS_PORT}
+      REDIS_URL: ${REDIS_URL}
+      DATABASE_URL: ${DATABASE_URL}
+      MIGRATION_DATABASE_URL: ${MIGRATION_DATABASE_URL}
+      DATABASE_APP_URL: ${DATABASE_APP_URL}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_started
+      minio-init:
+        condition: service_completed_successfully
+    ports:
+      - "127.0.0.1:${HOST_APP_PORT}:3001"
+    volumes:
+      - app-data:/app/data
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_APP_ROLE: ${POSTGRES_APP_ROLE:-app_runtime}
+      POSTGRES_APP_LOGIN: ${POSTGRES_APP_LOGIN:-app_runtime_login}
+      POSTGRES_APP_PASSWORD: ${POSTGRES_APP_PASSWORD}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"${POSTGRES_USER}\" -d \"${POSTGRES_DB}\""]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./postgres/init:/docker-entrypoint-initdb.d:ro
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    volumes:
+      - redis-data:/data
+    restart: unless-stopped
+
+  minio:
+    image: quay.io/minio/minio:latest
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    command: ["server", "/data", "--console-address", ":9001"]
+    ports:
+      - "127.0.0.1:${MINIO_API_PORT}:9000"
+      - "127.0.0.1:${MINIO_CONSOLE_PORT}:9001"
+    volumes:
+      - minio-data:/data
+    restart: unless-stopped
+
+  minio-init:
+    image: quay.io/minio/mc:latest
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      S3_BUCKET: ${S3_BUCKET}
+    depends_on:
+      minio:
+        condition: service_started
+    entrypoint:
+      - /bin/sh
+      - -ec
+      - |
+        until mc alias set local http://minio:9000 "$${MINIO_ROOT_USER}" "$${MINIO_ROOT_PASSWORD}" >/dev/null 2>&1; do
+          sleep 2
+        done
+        mc mb --ignore-existing "local/$${S3_BUCKET}"
+        # Do not make the bucket root public. Only profile/server/bot/emoji/sticker
+        # media prefixes are anonymously readable; message attachments remain
+        # under attachments/* and must be delivered through authenticated API
+        # routes.
+        cat > /tmp/public-media-policy.json <<EOF_POLICY
+        {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "AWS": ["*"]
+              },
+              "Action": ["s3:GetObject"],
+              "Resource": [
+                "arn:aws:s3:::$${S3_BUCKET}/avatars/*",
+                "arn:aws:s3:::$${S3_BUCKET}/banners/*",
+                "arn:aws:s3:::$${S3_BUCKET}/member-list-banners/*",
+                "arn:aws:s3:::$${S3_BUCKET}/server-icons/*",
+                "arn:aws:s3:::$${S3_BUCKET}/server-banners/*",
+                "arn:aws:s3:::$${S3_BUCKET}/bot-avatars/*",
+                "arn:aws:s3:::$${S3_BUCKET}/bot-banners/*",
+                "arn:aws:s3:::$${S3_BUCKET}/bot-uploads/*",
+                "arn:aws:s3:::$${S3_BUCKET}/emojis/*",
+                "arn:aws:s3:::$${S3_BUCKET}/stickers/*"
+              ]
+            }
+          ]
+        }
+        EOF_POLICY
+        mc anonymous set none "local/$${S3_BUCKET}" >/dev/null 2>&1 || true
+        mc anonymous set-json /tmp/public-media-policy.json "local/$${S3_BUCKET}"
+    restart: "no"
+
+  livekit:
+    image: livekit/livekit-server:latest
+    profiles:
+      - voice
+    environment:
+      LIVEKIT_CONFIG: |
+        port: 7880
+        redis:
+          address: redis:6379
+        keys:
+          ${LIVEKIT_API_KEY}: ${LIVEKIT_API_SECRET}
+        rtc:
+          tcp_port: ${LIVEKIT_RTC_TCP_PORT}
+          udp_port: ${LIVEKIT_RTC_UDP_PORT}
+          use_external_ip: true
+        logging:
+          level: info
+    depends_on:
+      redis:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:${LIVEKIT_PORT}:7880/tcp"
+      - "${LIVEKIT_RTC_TCP_PORT}:${LIVEKIT_RTC_TCP_PORT}/tcp"
+      - "${LIVEKIT_RTC_UDP_PORT}:${LIVEKIT_RTC_UDP_PORT}/udp"
+    restart: unless-stopped
+
+volumes:
+  app-data:
+  postgres-data:
+  redis-data:
+  minio-data:

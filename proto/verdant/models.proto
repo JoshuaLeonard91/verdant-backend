@@ -1,0 +1,301 @@
+syntax = "proto3";
+
+package verdant;
+
+// ─── User ───────────────────────────────────────────────────────────
+
+enum UserStatus {
+  USER_STATUS_UNSPECIFIED = 0;
+  USER_STATUS_ONLINE      = 1;
+  USER_STATUS_IDLE        = 2;
+  USER_STATUS_DND         = 3;
+  USER_STATUS_OFFLINE     = 4;
+}
+
+message User {
+  string id           = 1;
+  string username      = 2;
+  reserved 3;
+  reserved "discriminator";
+  string email         = 4;
+  optional string avatar_url = 5;
+  UserStatus status    = 6;
+  bool subscribed      = 7;
+  string created_at    = 8;
+  string updated_at    = 9;
+  bool username_set    = 10;
+}
+
+message UserProfile {
+  string id               = 1;
+  string user_id           = 2;
+  optional string display_name = 3;
+  optional string bio          = 4;
+  optional string banner_url   = 5;
+}
+
+message MessageAuthor {
+  string id                    = 1;
+  string username              = 2;
+  optional string avatar_url   = 3;
+  optional string display_name = 4;
+}
+
+// ─── Server ─────────────────────────────────────────────────────────
+
+message Server {
+  string id                       = 1;
+  string name                     = 2;
+  string owner_id                 = 3;
+  optional string icon_url        = 4;
+  optional string description     = 5;
+  int32 voice_bitrate             = 6;
+  string created_at               = 7;
+  string updated_at               = 8;
+  // Fields 9–14: added to match JSON READY server objects.
+  optional string welcome_channel_id  = 9;
+  optional string announce_channel_id = 10;
+  optional string welcome_message     = 11;
+  int32 emoji_version                 = 12;
+  bool large                          = 13;  // computed: member_count > threshold
+  int64 member_count                  = 14;
+  optional string banner_url          = 15;  // cdn-resolved
+  optional string accent_color        = 16;  // "#RRGGBB" or null
+  // Vertical focal point of the banner (0-100). 0 = top, 50 = center,
+  // 100 = bottom. Applied client-side as object-position Y%.
+  int32 banner_offset_y               = 17;
+}
+
+message ServerMember {
+  string id                       = 1;
+  string user_id                  = 2;
+  string server_id                = 3;
+  optional string nickname        = 4;
+  repeated string role_ids        = 5;
+  string joined_at                = 6;
+}
+
+// ─── Channel ────────────────────────────────────────────────────────
+
+// 0=server text, 1=DM, 2=group DM, 3=server voice
+enum ChannelType {
+  CHANNEL_TYPE_SERVER_TEXT  = 0;
+  CHANNEL_TYPE_DM           = 1;
+  CHANNEL_TYPE_GROUP_DM     = 2;
+  CHANNEL_TYPE_SERVER_VOICE = 3;
+}
+
+message Channel {
+  string id                       = 1;
+  ChannelType type                = 2;
+  optional string server_id       = 3;
+  optional string name            = 4;
+  optional string topic           = 5;
+  int32 position                  = 6;
+  optional string category_id     = 7;
+  string created_at               = 8;
+  bool read_only                  = 9;
+  int32 slowmode_seconds          = 10;
+}
+
+message ChannelReadState {
+  string channel_id               = 1;
+  string last_read_message_id     = 2;
+}
+
+// ─── Category ───────────────────────────────────────────────────────
+
+message Category {
+  string id                       = 1;
+  string server_id                = 2;
+  string name                     = 3;
+  int32 position                  = 4;
+  string created_at               = 5;
+  optional string emoji           = 6;
+}
+
+// ─── Message ────────────────────────────────────────────────────────
+
+message Attachment {
+  string id                       = 1;
+  string message_id               = 2;
+  string filename                 = 3;
+  string url                      = 4;
+  string content_type             = 5;
+  int32 size                      = 6;
+}
+
+message Reaction {
+  string emoji                    = 1;
+  optional string emoji_id        = 2;
+  int32 count                     = 3;
+  bool me                         = 4;
+}
+
+message ReplySnapshot {
+  string id                       = 1;
+  string content                  = 2;
+  MessageAuthor author            = 3;
+}
+
+message Message {
+  string id                       = 1;
+  string channel_id               = 2;
+  string author_id                = 3;
+  MessageAuthor author            = 4;
+  string content                  = 5;
+  repeated Attachment attachments = 6;
+  repeated Reaction reactions     = 7;
+  bool edited                     = 8;
+  string created_at               = 9;
+  string updated_at               = 10;
+  optional string nonce           = 11;
+  int32 type                      = 12;  // 0=user, 1=join, 2=leave, 3=pin_notification
+  optional ReplySnapshot reply_to = 13;
+  optional string edited_at = 14;  // ISO 8601 timestamp, null if not edited
+}
+
+// ─── Role ───────────────────────────────────────────────────────────
+
+message Role {
+  string id                       = 1;
+  string server_id                = 2;
+  string name                     = 3;
+  optional string color           = 4;
+  string permissions              = 5;  // bigint as numeric string
+  int32 position                  = 6;
+  string created_at               = 7;
+  string updated_at               = 8;
+  bool color_only                 = 9;
+  bool show_as_section            = 10;
+  int32 color_priority            = 11;
+}
+
+// ─── Emoji ──────────────────────────────────────────────────────────
+
+message Emoji {
+  string id                       = 1;
+  string server_id                = 2;
+  string name                     = 3;
+  string url                      = 4;
+  string created_by               = 5;
+  string created_at               = 6;
+}
+
+// ─── Voice ──────────────────────────────────────────────────────────
+
+message VoiceState {
+  string user_id                  = 1;
+  optional string channel_id      = 2;
+  string server_id                = 3;
+  bool self_mute                  = 4;
+  bool self_deaf                  = 5;
+  bool server_mute                = 6;
+  bool server_deaf                = 7;
+}
+
+// ─── Invite ─────────────────────────────────────────────────────────
+
+message Invite {
+  string code                     = 1;
+  string server_id                = 2;
+  string inviter_id               = 3;
+  optional string inviter_username = 4;
+  optional int32 max_uses         = 5;
+  int32 uses                      = 6;
+  optional string expires_at      = 7;
+  string created_at               = 8;
+}
+
+message InvitePreviewServer {
+  string id                       = 1;
+  string name                     = 2;
+  optional string icon_url        = 3;
+  int32 member_count              = 4;
+}
+
+message InvitePreview {
+  string code                     = 1;
+  InvitePreviewServer server      = 2;
+  string inviter_username         = 3;
+  optional string expires_at      = 4;
+}
+
+// ─── Relationship ───────────────────────────────────────────────────
+
+// 1=friend, 2=blocked, 3=pending_outgoing, 4=pending_incoming
+enum RelationshipType {
+  RELATIONSHIP_TYPE_UNSPECIFIED       = 0;
+  RELATIONSHIP_TYPE_FRIEND            = 1;
+  RELATIONSHIP_TYPE_BLOCKED           = 2;
+  RELATIONSHIP_TYPE_PENDING_OUTGOING  = 3;
+  RELATIONSHIP_TYPE_PENDING_INCOMING  = 4;
+}
+
+message RelationshipUser {
+  string id                       = 1;
+  string username                 = 2;
+  reserved 3;
+  reserved "discriminator";
+  optional string avatar_url      = 4;
+  string status                   = 5;
+}
+
+message Relationship {
+  string user_id                  = 1;
+  RelationshipType type           = 2;
+  RelationshipUser user           = 3;
+  string created_at               = 4;
+  optional string notes           = 5;
+  optional string nickname_color  = 6;
+}
+
+// ─── Feed & Announcements ───────────────────────────────────────────
+
+message Feed {
+  string id                       = 1;
+  string server_id                = 2;
+  string name                     = 3;
+  optional string description     = 4;
+  repeated string publish_role_ids = 5;
+  repeated string view_role_ids   = 6;
+  string created_at               = 7;
+  optional string icon            = 8;
+  int32 position                  = 9;
+}
+
+message Announcement {
+  string id                       = 1;
+  string feed_id                  = 2;
+  string server_id                = 3;
+  string title                    = 4;
+  string content                  = 5;
+  string author_id                = 6;
+  optional string author_username = 7;
+  optional string author_avatar   = 8;
+  string created_at               = 9;
+  optional string updated_at      = 10;
+}
+
+// ─── DM ─────────────────────────────────────────────────────────────
+
+message DmParticipant {
+  string id                       = 1;
+  string username                 = 2;
+  reserved 3;
+  reserved "discriminator";
+  optional string avatar_url      = 4;
+  string status                   = 5;
+  optional string display_name    = 6;
+  optional string name_color      = 7;
+}
+
+message DmChannel {
+  string id                       = 1;
+  ChannelType type                = 2;  // 1 or 2
+  optional string name            = 3;
+  repeated DmParticipant participants = 4;
+  optional string last_message_id = 5;
+  optional string last_message_at = 6;
+  string created_at               = 7;
+}

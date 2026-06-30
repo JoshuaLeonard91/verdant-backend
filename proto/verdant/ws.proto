@@ -1,0 +1,489 @@
+syntax = "proto3";
+
+package verdant;
+
+import "verdant/models.proto";
+
+// ═══════════════════════════════════════════════════════════════════════
+// WebSocket Envelope
+// Single top-level message for all WS traffic. The `oneof payload` gives
+// compile-time exhaustive `match` in Rust and discriminated unions in TS.
+//
+// Field numbers:
+//   1–49  = server → client events
+//   50–62 = client → server events
+//   63+   = additive post-launch events
+// ═══════════════════════════════════════════════════════════════════════
+
+message WsMessage {
+  oneof payload {
+    // ─── Server → Client (1–30) ───────────────────────────────────
+    Ready                ready                  = 1;
+    MessageCreate        message_create         = 2;
+    MessageUpdate        message_update         = 3;
+    MessageDelete        message_delete         = 4;
+    TypingStart          typing_start           = 5;
+    PresenceUpdate       presence_update        = 6;
+    ChannelCreate        channel_create         = 7;
+    ChannelUpdate        channel_update         = 8;
+    ChannelDelete        channel_delete         = 9;
+    MemberRemove         member_remove          = 10;
+    ServerDelete         server_delete          = 11;
+    VoiceStateUpdate     voice_state_update     = 12;
+    CategoryCreate       category_create        = 13;
+    CategoryUpdate       category_update        = 14;
+    CategoryDelete       category_delete        = 15;
+    ReactionAdd          reaction_add           = 16;
+    ReactionRemove       reaction_remove        = 17;
+    RoleCreate           role_create            = 18;
+    RoleUpdate           role_update            = 19;
+    RoleDelete           role_delete            = 20;
+    MemberRoleUpdate     member_role_update     = 21;
+    ForceUpdate          force_update           = 22;
+    FeatureFlagsUpdate   feature_flags_update   = 23;
+    RelationshipAdd      relationship_add       = 24;
+    RelationshipRemove   relationship_remove    = 25;
+    DmChannelCreate      dm_channel_create      = 26;
+    MessageSendError     message_send_error     = 27;
+    UpdateAvailable      update_available       = 28;
+    WsError              ws_error               = 29;
+    MessagePin           message_pin            = 30;
+    MessageUnpin         message_unpin          = 31;
+    MemberJoin           member_join            = 32;
+    UserProfileUpdate    user_profile_update    = 33;
+    ServerUpdate         server_update          = 34;
+    ServerEmojisUpdate   server_emojis_update   = 35;
+    DmNameColorUpdate    dm_name_color_update   = 36;
+    AnnouncementCreate   announcement_create    = 42;
+    AnnouncementUpdate   announcement_update    = 43;
+    AnnouncementDelete   announcement_delete    = 44;
+    FeedCreate           feed_create            = 45;
+    FeedUpdate           feed_update            = 46;
+    FeedDelete           feed_delete            = 47;
+    ReadyDelta           ready_delta            = 48;
+    Batch                batch                  = 49;
+    ChannelUnreadSignal  channel_unread_signal  = 63;
+    ChannelActivityUpdate channel_activity_update = 64;
+
+    // ─── Bidirectional (37–38) ─────────────────────────────────────
+    Ping                 ping                   = 40;
+    Pong                 pong                   = 41;
+
+    // ─── Client → Server (50–65) ──────────────────────────────────
+    Identify             identify               = 50;
+    ClientTypingStart    client_typing_start    = 51;
+    ClientPresenceUpdate client_presence_update = 52;
+    ClientMessageSend    client_message_send    = 53;
+    ClientMessageEdit    client_message_edit    = 54;
+    ClientMessageDelete  client_message_delete  = 55;
+    ClientReactionAdd    client_reaction_add    = 56;
+    ClientReactionRemove client_reaction_remove = 57;
+    ClientChannelAck     client_channel_ack     = 58;
+    ClientVoiceState     client_voice_state     = 59;
+    ClientVoiceLeave     client_voice_leave     = 60;
+    ClientFocusServer    client_focus_server    = 61;
+    ClientRequestMembers client_request_members = 62;
+    ClientFocusChannel   client_focus_channel   = 65;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Server → Client Events
+// ═══════════════════════════════════════════════════════════════════════
+
+message Ready {
+  string session_id                           = 1;
+  string user_id                              = 2;
+  repeated Server servers                     = 3;
+  repeated string server_order                = 4;
+  repeated string favorite_order              = 5;
+  repeated Category categories                = 6;
+  repeated Channel channels                   = 7;
+  repeated Emoji emojis                       = 8;
+  repeated string dm_channel_ids              = 9;
+  repeated Relationship relationships         = 10;
+  repeated DmChannel dm_channels              = 11;
+  repeated VoiceState voice_states            = 12;
+  repeated ChannelReadState read_states       = 13;
+  repeated Role roles                         = 14;
+  map<string, MemberRoleIds> member_role_ids  = 15;  // serverId → roleIds
+  string server_version                       = 16;
+  string min_client_version                   = 17;
+  map<string, bool> feature_flags             = 18;
+  // Fields 19–26: added to match JSON READY so proto READY can go binary.
+  string username                             = 19;
+  optional string display_name                = 20;
+  optional string avatar_url                  = 21;
+  optional string banner_url                  = 22;
+  string user_status                          = 23;  // "online", "idle", "dnd", "offline"
+  repeated PresenceEntry presences            = 24;
+  optional string preferences_json            = 25;  // opaque JSON blob, client JSON.parse()s
+  optional string subscription_json           = 26;  // opaque JSON blob
+  repeated Feed feeds                         = 27;
+  optional string entitlements_json           = 28;  // opaque JSON blob
+  optional string instance_json               = 29;  // opaque JSON blob
+  optional bool username_set                  = 30;
+  optional string banner_base_color           = 31;
+}
+
+// Helper for the member_role_ids map value
+message MemberRoleIds {
+  repeated string role_ids = 1;
+}
+
+// Delta READY — sent on reconnect instead of full READY when possible.
+// Only populated fields represent "changes since last READY".
+message ReadyDelta {
+  repeated Channel updated_channels       = 1;
+  repeated string removed_channel_ids     = 2;
+  repeated Role updated_roles             = 3;
+  repeated string removed_role_ids        = 4;
+  repeated ChannelReadState read_states   = 5;
+  repeated PresenceEntry presences        = 6;
+  string server_version                   = 7;
+  string session_id                       = 8;
+  map<string, bool> feature_flags         = 9;
+}
+
+message PresenceEntry {
+  string user_id = 1;
+  string status  = 2;
+}
+
+message MessageCreate {
+  Message message = 1;
+}
+
+message MessageUpdate {
+  Message message = 1;
+}
+
+message MessageDelete {
+  string id         = 1;
+  string channel_id = 2;
+}
+
+message ChannelUnreadSignal {
+  string channel_id             = 1;
+  optional string server_id     = 2;
+  string message_id             = 3;
+  string author_id              = 4;
+  string created_at             = 5;
+  bool mentions_current_user    = 6;
+  bool dm                       = 7;
+}
+
+message ChannelActivityUpdate {
+  string channel_id             = 1;
+  string user_id                = 2;
+  string last_message_at        = 3;
+  optional string username      = 4;
+  optional string display_name  = 5;
+  optional string avatar_url    = 6;
+}
+
+message TypingStart {
+  string channel_id = 1;
+  string user_id    = 2;
+  string timestamp  = 3;
+}
+
+message PresenceUpdate {
+  string user_id    = 1;
+  UserStatus status = 2;
+}
+
+message ChannelCreate {
+  Channel channel = 1;
+}
+
+message ChannelUpdate {
+  Channel channel = 1;
+}
+
+message ChannelDelete {
+  string channel_id = 1;
+  string server_id  = 2;
+}
+
+message MemberRemove {
+  string server_id = 1;
+  string user_id   = 2;
+}
+
+message ServerDelete {
+  string server_id = 1;
+}
+
+message VoiceStateUpdate {
+  VoiceState voice_state = 1;
+}
+
+message CategoryCreate {
+  Category category = 1;
+}
+
+message CategoryUpdate {
+  Category category = 1;
+}
+
+message CategoryDelete {
+  string category_id = 1;
+  string server_id   = 2;
+}
+
+message ReactionAdd {
+  string message_id          = 1;
+  string channel_id          = 2;
+  string user_id             = 3;
+  string emoji               = 4;
+  optional string emoji_id   = 5;
+}
+
+message ReactionRemove {
+  string message_id = 1;
+  string channel_id = 2;
+  string user_id    = 3;
+  string emoji      = 4;
+}
+
+message RoleCreate {
+  string server_id = 1;
+  Role role        = 2;
+}
+
+message RoleUpdate {
+  string server_id = 1;
+  Role role        = 2;
+}
+
+message RoleDelete {
+  string server_id = 1;
+  string role_id   = 2;
+}
+
+message MemberRoleUpdate {
+  string server_id        = 1;
+  string user_id          = 2;
+  repeated string role_ids = 3;
+}
+
+message ForceUpdate {
+  string min_version  = 1;
+  string download_url = 2;
+}
+
+message FeatureFlagsUpdate {
+  map<string, bool> flags = 1;
+}
+
+message RelationshipAdd {
+  Relationship relationship = 1;
+}
+
+message RelationshipRemove {
+  string user_id = 1;
+}
+
+message DmChannelCreate {
+  DmChannel dm_channel = 1;
+}
+
+message MessageSendError {
+  string nonce = 1;
+  string error = 2;
+  string code  = 3;
+}
+
+message UpdateAvailable {
+  string version = 1;
+  string notes   = 2;
+}
+
+message WsError {
+  string origin_op = 1;
+  string error     = 2;
+  string code      = 3;
+}
+
+message MessagePin {
+  string message_id = 1;
+  string channel_id = 2;
+  string pinned_by  = 3;
+}
+
+message MessageUnpin {
+  string message_id = 1;
+  string channel_id = 2;
+}
+
+message MemberJoin {
+  string server_id                = 1;
+  string user_id                  = 2;
+  string username                 = 3;
+  optional string display_name    = 4;
+  optional string avatar_url      = 5;
+  string joined_at                = 6;
+}
+
+message UserProfileUpdate {
+  string user_id                    = 1;
+  optional string avatar_url        = 2;
+  optional string banner_url        = 3;
+  optional string display_name      = 4;
+  optional string bio               = 5;
+  optional string banner_base_color = 6;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Client → Server Events
+// ═══════════════════════════════════════════════════════════════════════
+
+message Identify {
+  string token                       = 1;
+  optional string client_version     = 2;
+  optional string resume_session_id  = 3;  // If set, request delta READY
+  optional string last_ready_at      = 4;  // ISO timestamp of last READY
+  UserStatus initial_status          = 5;  // Client's current status on connect
+  bool afk                           = 6;  // true = client is auto-idled
+}
+
+message ClientTypingStart {
+  string channel_id = 1;
+}
+
+message ClientPresenceUpdate {
+  UserStatus status = 1;
+  // true = client is auto-idled (afk). Server will NOT persist to preferred_status.
+  // false = user manually chose this status → persist to preferred_status in VDB.
+  bool afk = 2;
+}
+
+message ClientMessageSend {
+  string channel_id          = 1;
+  string content             = 2;
+  string nonce               = 3;
+  optional string reply_to_id = 4;
+}
+
+message ClientMessageEdit {
+  string channel_id = 1;
+  string message_id = 2;
+  string content    = 3;
+}
+
+message ClientMessageDelete {
+  string channel_id = 1;
+  string message_id = 2;
+}
+
+message ClientReactionAdd {
+  string channel_id          = 1;
+  string message_id          = 2;
+  string emoji               = 3;
+  optional string emoji_id   = 4;
+}
+
+message ClientReactionRemove {
+  string channel_id = 1;
+  string message_id = 2;
+  string emoji      = 3;
+}
+
+message ClientChannelAck {
+  string channel_id = 1;
+  string message_id = 2;
+}
+
+message ClientVoiceState {
+  optional bool self_mute = 1;
+  optional bool self_deaf = 2;
+}
+
+message ClientVoiceLeave {}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Bidirectional
+// ═══════════════════════════════════════════════════════════════════════
+
+message ServerUpdate {
+  Server server = 1;
+}
+
+message ServerEmojisUpdate {
+  string server_id     = 1;
+  int32 emoji_version  = 2;
+  repeated Emoji emojis = 3;
+}
+
+message DmNameColorUpdate {
+  string channel_id          = 1;
+  string user_id             = 2;
+  optional string name_color = 3;
+}
+
+message AnnouncementCreate {
+  string server_id    = 1;
+  string feed_id      = 2;
+  Announcement announcement = 3;
+}
+
+message AnnouncementUpdate {
+  string server_id    = 1;
+  string feed_id      = 2;
+  Announcement announcement = 3;
+}
+
+message AnnouncementDelete {
+  string server_id        = 1;
+  string feed_id          = 2;
+  string announcement_id  = 3;
+}
+
+message FeedCreate {
+  string server_id = 1;
+  Feed feed        = 2;
+}
+
+message FeedUpdate {
+  string server_id = 1;
+  Feed feed        = 2;
+}
+
+message FeedDelete {
+  string server_id = 1;
+  string feed_id   = 2;
+}
+
+// ─── Client → Server (new ops) ─────────────────────────────────────
+
+message ClientFocusServer {
+  string server_id = 1;
+}
+
+message ClientFocusChannel {
+  optional string channel_id = 1;
+}
+
+message ClientRequestMembers {
+  string server_id     = 1;
+  optional string query = 2;
+  int32 limit           = 3;
+}
+
+message Ping {}
+message Pong {}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Batch envelope — packs multiple WsMessage frames into a single frame
+// so the server can send N coalesced events with one WebSocket write.
+//
+// Clients must advertise `capabilities.batch_frames = true` in IDENTIFY
+// to opt in. Servers fall back to individual frames for legacy clients.
+//
+// Unpacking: on receipt, iterate `messages` in order and dispatch each
+// as if it had arrived on its own — ordering is preserved.
+// ═══════════════════════════════════════════════════════════════════════
+message Batch {
+  repeated WsMessage messages = 1;
+}

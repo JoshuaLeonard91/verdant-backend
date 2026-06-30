@@ -1,0 +1,29 @@
+syntax = "proto3";
+package verdant;
+import "verdant/models.proto";
+
+// Reaction with user IDs instead of per-user `me` flag (user-agnostic cache)
+message CachedReaction {
+  string emoji     = 1;
+  optional string emoji_id = 2;
+  int32 count      = 3;
+  repeated string user_ids = 4;
+}
+
+// Message with CachedReaction (stored in Valkey as protobuf binary)
+message CachedMessage {
+  string id           = 1;
+  string channel_id   = 2;
+  string author_id    = 3;
+  MessageAuthor author = 4;
+  string content      = 5;
+  repeated Attachment attachments = 6;
+  repeated CachedReaction reactions = 7;
+  bool edited         = 8;
+  string created_at   = 9;
+  string updated_at   = 10;
+  optional string nonce = 11;
+  int32 type          = 12;
+  optional ReplySnapshot reply_to = 13;
+  optional string edited_at = 14;
+}

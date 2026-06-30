@@ -1,0 +1,46 @@
+# cargo-audit configuration
+# Acknowledged advisories that are accepted risks for this project.
+# Each entry MUST have a justification comment explaining why it's safe to ignore.
+# cargo-audit 0.22 does not read this file automatically; run scripts/audit-deps.sh
+# or pass the matching --ignore flags while keeping the rationale documented here.
+
+[advisories]
+ignore = [
+    # lru 0.12.5 — unsound IterMut (RUSTSEC-2026-0002)
+    # Transitive dep via aws-sdk-s3. We never call IterMut on the LRU cache
+    # directly. Warning-level only, not exploitable in our usage.
+    "RUSTSEC-2026-0002",
+
+    # rustls-webpki 0.101.7 — CRL Distribution Point matching (RUSTSEC-2026-0049)
+    # Transitive dep via rustls 0.21 (pinned by aws-smithy-http-client).
+    # Cannot upgrade without AWS SDK releasing with rustls 0.23-only support.
+    # We don't use CRL-based certificate revocation checking.
+    "RUSTSEC-2026-0049",
+
+    # rustls-webpki 0.101.7 — Name constraints for URI names (RUSTSEC-2026-0098)
+    # Same transitive dep chain: rustls 0.21 → aws-smithy-http-client.
+    # Cannot upgrade the 0.101.x branch without AWS SDK dropping rustls 0.21.
+    # The 0.103.x branch (our direct dep) is updated to 0.103.12 which fixes this.
+    # The 0.101.7 path only handles S3 connections to DigitalOcean Spaces (trusted).
+    "RUSTSEC-2026-0098",
+
+    # rustls-webpki 0.101.7 — Wildcard name constraints (RUSTSEC-2026-0099)
+    # Same root cause as above. Only affects the AWS SDK TLS path to DO Spaces.
+    "RUSTSEC-2026-0099",
+
+    # rand 0.8.5 / 0.9.2 — unsound with custom logger using rand::rng() (RUSTSEC-2026-0097)
+    # Warning-level unsoundness, triggered only when a custom logging hook is
+    # installed that itself calls rand::rng() during logger init. Verdant uses
+    # tracing-subscriber with no such hook, so the unsound path is never taken.
+    # Transitive via axum/tungstenite/totp-rs/quinn/crc-fast; not actionable
+    # until those upstreams migrate to rand 0.9.3+.
+    "RUSTSEC-2026-0097",
+
+    # rsa 0.9.10 - Marvin timing side-channel (RUSTSEC-2023-0071)
+    # Transitive through sqlx-mysql inside sqlx's derive/macro support. This
+    # server is Postgres-only and does not configure or use SQLx MySQL, and the
+    # advisory has no fixed rsa release. Removing sqlx derive would require
+    # rewriting every PG row mapper by hand, so this is documented until SQLx
+    # ships a path that no longer locks the MySQL helper crate into Cargo.lock.
+    "RUSTSEC-2023-0071",
+]

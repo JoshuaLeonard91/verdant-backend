@@ -1,0 +1,187 @@
+name: Backend Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing release tag, for example v0.1.0"
+        required: true
+        type: string
+      prerelease:
+        description: "Mark the GitHub release as a prerelease"
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  id-token: write
+  attestations: write
+
+concurrency:
+  group: backend-release-${{ github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Build backend release
+    if: ${{ github.repository == 'JoshuaLeonard91/verdant-backend' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve requested release tag
+        id: release_ref
+        env:
+          RAW_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+          RAW_PRERELEASE: ${{ github.event_name == 'workflow_dispatch' && inputs.prerelease || false }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="$RAW_TAG"
+          prerelease="$RAW_PRERELEASE"
+          if [[ ! "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Release tags must look like v0.1.0; got '$tag'." >&2
+            exit 1
+          fi
+          if [ "$prerelease" != "true" ]; then
+            prerelease="false"
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "prerelease=$prerelease" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout public source
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: refs/tags/${{ steps.release_ref.outputs.tag }}
+
+      - name: Validate release source
+        id: source
+        env:
+          RELEASE_TAG: ${{ steps.release_ref.outputs.tag }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --force origin \
+            "refs/heads/main:refs/remotes/origin/main" \
+            "refs/tags/${RELEASE_TAG}:refs/tags/${RELEASE_TAG}"
+          checked_out_sha="$(git rev-parse HEAD)"
+          tag_sha="$(git rev-list -n 1 "refs/tags/${RELEASE_TAG}")"
+          if [ "$checked_out_sha" != "$tag_sha" ]; then
+            echo "Checked-out commit $checked_out_sha does not match ${RELEASE_TAG} commit $tag_sha." >&2
+            exit 1
+          fi
+          if ! git merge-base --is-ancestor "$checked_out_sha" origin/main; then
+            echo "Release tag ${RELEASE_TAG} must point at a commit already merged to public main." >&2
+            exit 1
+          fi
+          echo "sha=$checked_out_sha" >> "$GITHUB_OUTPUT"
+
+      - name: Resolve release version
+        id: release
+        env:
+          RELEASE_TAG: ${{ steps.release_ref.outputs.tag }}
+          RELEASE_PRERELEASE: ${{ steps.release_ref.outputs.prerelease }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="$RELEASE_TAG"
+          prerelease="$RELEASE_PRERELEASE"
+          if [[ ! "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Release tags must look like v0.1.0; got '$tag'." >&2
+            exit 1
+          fi
+          version="${tag#v}"
+          crate_version="$(sed -n 's/^version = "\(.*\)"/\1/p' server-rs/Cargo.toml | head -n 1)"
+          if [ "$crate_version" != "$version" ]; then
+            echo "Release tag $tag does not match server-rs/Cargo.toml version $crate_version." >&2
+            exit 1
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "prerelease=$prerelease" >> "$GITHUB_OUTPUT"
+
+      - name: Install build dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends protobuf-compiler
+
+      - name: Run backend tests
+        shell: bash
+        run: cargo test -j 2 --manifest-path server-rs/Cargo.toml --lib
+
+      - name: Build backend binary
+        shell: bash
+        run: cargo build --locked --release --manifest-path server-rs/Cargo.toml --bin verdant-server
+
+      - name: Package backend release
+        id: package
+        env:
+          RELEASE_SOURCE_SHA: ${{ steps.source.outputs.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${{ steps.release.outputs.version }}"
+          package_name="verdant-server-${version}-linux-x64"
+          package_dir="dist/${package_name}"
+          mkdir -p "$package_dir"
+          cp server-rs/target/release/verdant-server "$package_dir/verdant-server"
+          chmod 0755 "$package_dir/verdant-server"
+          cp -R server-rs/migrations "$package_dir/migrations"
+          cat > "$package_dir/release.json" <<JSON
+          {
+            "name": "verdant-server",
+            "version": "${version}",
+            "target": "linux-x64",
+            "source": "${GITHUB_REPOSITORY}@${RELEASE_SOURCE_SHA}",
+            "createdAt": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+          }
+          JSON
+          tar -C dist -czf "dist/${package_name}.tar.gz" "$package_name"
+          (cd dist && sha256sum "${package_name}.tar.gz" > SHA256SUMS)
+          echo "archive=dist/${package_name}.tar.gz" >> "$GITHUB_OUTPUT"
+          echo "checksums=dist/SHA256SUMS" >> "$GITHUB_OUTPUT"
+
+      - name: Attest backend archive
+        uses: actions/attest-build-provenance@96b4a1ef7235a096b17240c259729fdd70c83d45
+        with:
+          subject-path: ${{ steps.package.outputs.archive }}
+
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
+          RELEASE_VERSION: ${{ steps.release.outputs.version }}
+          RELEASE_PRERELEASE: ${{ steps.release.outputs.prerelease }}
+          RELEASE_ARCHIVE: ${{ steps.package.outputs.archive }}
+          RELEASE_CHECKSUMS: ${{ steps.package.outputs.checksums }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          notes="$(cat <<NOTES
+          Backend release ${RELEASE_VERSION}.
+
+          Assets:
+          - ${RELEASE_ARCHIVE#dist/}
+          - SHA256SUMS
+
+          Verify provenance with GitHub artifact attestations before installing.
+          NOTES
+          )"
+          release_args=()
+          if [ "$RELEASE_PRERELEASE" = "true" ]; then
+            release_args+=(--prerelease)
+          fi
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            echo "Release ${RELEASE_TAG} already exists. Refusing to replace release assets." >&2
+            exit 1
+          fi
+          gh release create "$RELEASE_TAG" "$RELEASE_ARCHIVE" "$RELEASE_CHECKSUMS" \
+            --title "Verdant Backend ${RELEASE_VERSION}" \
+            --notes "$notes" \
+            "${release_args[@]}"
