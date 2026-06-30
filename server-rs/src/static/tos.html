@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Terms of Service — Verdant</title>
+  <meta name="description" content="Verdant Terms of Service">
+  <meta name="theme-color" content="#060806">
+  <link rel="icon" href="/assets/neon-tree-small.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --bg: #060806;
+      --text: #f0f2f0;
+      --text-mid: #94a39a;
+      --text-dim: #475550;
+      --green: #10b981;
+      --green-dark: #064e36;
+      --rule: rgba(255, 255, 255, 0.07);
+      --font: 'Inter', system-ui, -apple-system, sans-serif;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--text);
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    .page {
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 0 2.5rem 4rem;
+    }
+
+    nav {
+      padding: 2rem 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .logo {
+      font-size: 0.85rem;
+      font-weight: 700;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--green);
+      text-decoration: none;
+    }
+
+    nav a:not(.logo) {
+      font-size: 0.78rem;
+      font-weight: 500;
+      color: var(--text-dim);
+      text-decoration: none;
+      letter-spacing: 0.03em;
+      transition: color 0.2s;
+    }
+    nav a:not(.logo):hover { color: var(--text-mid); }
+
+    .header {
+      padding: 4rem 0 2rem;
+    }
+
+    .header h1 {
+      font-size: 2.2rem;
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      line-height: 1.1;
+      margin-bottom: 0.75rem;
+    }
+
+    .header .updated {
+      font-size: 0.78rem;
+      color: var(--text-dim);
+      letter-spacing: 0.02em;
+    }
+
+    hr {
+      border: none;
+      height: 1px;
+      background: var(--rule);
+      margin: 0;
+    }
+
+    .content {
+      padding: 2.5rem 0;
+    }
+
+    .content h2 {
+      font-size: 1.1rem;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      margin-bottom: 0.75rem;
+      margin-top: 2.5rem;
+    }
+
+    .content h2:first-child {
+      margin-top: 0;
+    }
+
+    .content p {
+      font-size: 0.88rem;
+      color: var(--text-mid);
+      line-height: 1.75;
+      margin-bottom: 1rem;
+    }
+
+    .content ul {
+      list-style: none;
+      padding: 0;
+      margin-bottom: 1rem;
+    }
+
+    .content li {
+      font-size: 0.88rem;
+      color: var(--text-mid);
+      line-height: 1.75;
+      padding-left: 1.2rem;
+      position: relative;
+    }
+
+    .content li::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 0.65em;
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background: var(--green);
+    }
+
+    .content strong {
+      color: var(--text);
+      font-weight: 600;
+    }
+
+    .content a {
+      color: var(--green);
+      text-decoration: none;
+      transition: opacity 0.2s;
+    }
+    .content a:hover { opacity: 0.8; }
+
+    footer {
+      padding: 2.5rem 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    footer p, footer a {
+      font-size: 0.7rem;
+      color: var(--text-dim);
+      letter-spacing: 0.02em;
+      text-decoration: none;
+    }
+    footer a:hover { color: var(--text-mid); }
+
+    @media (max-width: 640px) {
+      .page { padding: 0 1.5rem 3rem; }
+      .header { padding: 3rem 0 1.5rem; }
+      .header h1 { font-size: 1.8rem; }
+    }
+  </style>
+  <link rel="stylesheet" href="/assets/site.css">
+</head>
+<body>
+
+<div class="page">
+
+  <nav>
+    <a href="/" class="logo">
+      <img class="brand-icon" src="/assets/neon-tree-small.svg" alt="" aria-hidden="true">
+      <span>Verdant</span>
+    </a>
+    <a href="/privacy">Privacy Policy</a>
+  </nav>
+
+  <section class="header">
+    <h1>Terms of Service</h1>
+    <p class="updated">Last updated: March 4, 2026</p>
+  </section>
+
+  <hr>
+
+  <div class="content">
+
+    <h2>1. Acceptance</h2>
+    <p>
+      By creating an account or using Verdant ("the Service"), you agree to these Terms of Service.
+      If you do not agree, do not use the Service.
+    </p>
+
+    <h2>2. Eligibility</h2>
+    <p>
+      You must be at least <strong>13 years of age</strong> to use the Service.
+      If you are under the age of majority in your jurisdiction, you must have parental or guardian consent.
+      By using the Service, you represent that you meet these requirements.
+    </p>
+
+    <h2>3. Account Responsibility</h2>
+    <p>
+      You are responsible for maintaining the security of your account credentials.
+      You must not share your account with others or use another person's account without permission.
+      You are responsible for all activity that occurs under your account.
+    </p>
+
+    <h2>4. Prohibited Content</h2>
+    <p>You must not upload, share, or distribute any of the following:</p>
+    <ul>
+      <li>Child sexual abuse material (CSAM) or any content depicting the sexual exploitation of minors</li>
+      <li>Non-consensual intimate imagery</li>
+      <li>Content that promotes terrorism or violent extremism</li>
+      <li>Content that violates applicable laws in your jurisdiction</li>
+      <li>Content you do not have the rights to share</li>
+    </ul>
+
+    <h2>5. Upload Review and Moderation</h2>
+    <p>
+      Upload availability and moderation depend on instance configuration. Some instances validate uploads
+      only for file type and size before storage. Others may use an operator-managed moderation process or
+      a configured content scanner. Do not assume every instance performs automated scanning.
+    </p>
+    <p>
+      If content violates these Terms, instance policy, or applicable law:
+    </p>
+    <ul>
+      <li>The content may be removed or <strong>preserved as evidence</strong> in a restricted storage area</li>
+      <li>Your account may be suspended and active sessions may be revoked</li>
+      <li>The incident may be <strong>reported to NCMEC and/or law enforcement</strong> where legally required</li>
+      <li>Associated metadata (IP address, email, timestamps) may be retained for legal compliance</li>
+    </ul>
+
+    <h2>6. User Reports</h2>
+    <p>
+      Users may report messages they believe violate these Terms.
+      Reports are reviewed by the Verdant team. False or abusive reports may result in action against the reporting account.
+    </p>
+
+    <h2>7. Account Suspension &amp; Termination</h2>
+    <p>
+      Verdant reserves the right to suspend or terminate any account that violates these Terms,
+      with or without prior notice. Accounts that violate upload, safety, or legal policies may be suspended.
+      You may request account deletion at any time through the application settings.
+    </p>
+
+    <h2>8. Intellectual Property</h2>
+    <p>
+      You retain ownership of content you upload. By uploading content, you grant Verdant a limited license
+      to store, process, and transmit that content as necessary to operate the Service.
+      You must not upload content you do not have the rights to share.
+    </p>
+
+    <h2>9. Disclaimer of Warranties</h2>
+    <p>
+      The Service is provided "as is" without warranties of any kind, express or implied.
+      Verdant does not guarantee uninterrupted or error-free operation.
+    </p>
+
+    <h2>10. Limitation of Liability</h2>
+    <p>
+      To the maximum extent permitted by law, Verdant shall not be liable for any indirect,
+      incidental, special, or consequential damages arising from your use of the Service.
+    </p>
+
+    <h2>11. Changes to These Terms</h2>
+    <p>
+      We may update these Terms from time to time. Continued use of the Service after changes
+      constitutes acceptance of the updated Terms. Significant changes will be communicated
+      through the application.
+    </p>
+
+    <h2>12. Contact</h2>
+    <p>
+      For questions about these Terms, contact us at <strong>legal@verdant.app</strong>.
+    </p>
+
+  </div>
+
+  <hr>
+
+  <footer>
+    <p>&copy; 2026 Verdant</p>
+    <a href="/privacy">Privacy Policy</a>
+  </footer>
+
+</div>
+
+</body>
+</html>

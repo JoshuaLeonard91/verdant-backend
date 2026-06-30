@@ -1,0 +1,763 @@
+syntax = "proto3";
+
+// VerdantDB query layer record types.
+//
+// These are the schemas mirrored from postgres into VerdantDB so the
+// custom query layer can serve reads alongside (or eventually instead
+// of) postgres. Each message corresponds to one Vdb*Record struct in
+// server-rs/src/services/verdantdb.rs and is encoded with prost when
+// stored as a value in VerdantDB's redb table store.
+//
+// **Wire format choice (proto over JSON):** the previous prototype
+// used serde_json for these records — that was technical debt I should
+// not have shipped. proto gives us:
+//   - compact wire format (no field-name overhead per record)
+//   - schema evolution via field numbers instead of "did you remember
+//     to add #[serde(default)] on every new field"
+//   - generated typed Rust + future TS bindings from one schema
+//   - parses faster (no allocator pressure per field)
+//
+// **Forward-compatibility rules:**
+//   - NEVER reuse a field number after removing a field. Use `reserved`
+//     for the field number to lock it.
+//   - Add new fields at the next free number; old data still decodes
+//     because unknown fields are skipped.
+//   - Don't change a field's type; if needed, deprecate + add a new
+//     field with a new number.
+
+package verdant;
+
+// ─── Auth ───────────────────────────────────────────────────────────
+
+// Mirrors the postgres `users` row. The READY payload uses the
+// display fields (username, display_name, avatar_url, banner_url),
+// the order arrays, the preferences blob, and the subscription
+// columns — all of which live in this single VDB record so the
+// IDENTIFY handler can build the user portion of READY in one read.
+//
+// proto3 sentinel rules in this message:
+//   - timestamps as i64 unix millis, 0 = unset
+//   - string fields: empty string = unset (postgres NULL becomes "")
+//   - subscription_tier == "" means no active subscription
+message VdbUser {
+  // ── Identity / auth (existing fields, do not renumber) ────
+  int64 id                     = 1;
+  string email                 = 2;
+  string password_hash         = 3;
+  string status_type           = 4;
+  int64 totp_enabled_at_millis = 5;
+  int64 deleted_at_millis      = 6;
+  bool email_verified          = 7;
+
+  // ── Display fields (new) ──────────────────────────────────
+  string username     = 8;
+  string display_name = 9;   // empty = unset
+  string avatar_url   = 10;  // raw key, NOT cdn::resolve'd; client resolves
+  string banner_url   = 11;
+  string bio          = 12;
+
+  // ── Ordering preferences (new) ────────────────────────────
+  // server_order is a client-provided list of server_ids the user
+  // has dragged into a custom order. Stored as i64 to match how the
+  // READY payload uses them (server ids are i64). The postgres
+  // column is jsonb-encoded; we parse to int at write time.
+  repeated int64 server_order   = 13;
+  repeated int64 favorite_order = 14;
+
+  // ── User preferences (new) ────────────────────────────────
+  // The postgres `preferences` column is a free-form jsonb blob.
+  // We mirror the fields the server actually parses for IDENTIFY
+  // logic. Anything else the client sets via PATCH /me/preferences
+  // is preserved as opaque pass-through bytes — the server doesn't
+  // need to read it but the client does, so we ship it back through
+  // VDB unchanged.
+  VdbUserPreferences preferences = 15;
+
+  // ── Subscription columns (new) ────────────────────────────
+  // These live on the postgres `users` row directly (not in a
+  // separate subscription_events table). Empty tier = free user.
+  string subscription_tier              = 16;
+  int64 subscription_expires_at_millis  = 17;
+  string subscription_ring_style        = 18;
+  bool subscribed                       = 19;
+  bool username_set                     = 20;
+
+  // ── Timestamps (new) ──────────────────────────────────────
+  int64 created_at_millis = 21;
+  int64 updated_at_millis = 22;
+
+  // ── TOTP secret (encrypted-at-rest) ────────────────────────
+  // base64(argon2-wrapped AES-GCM ciphertext + nonce) of the
+  // user's TOTP shared secret. "" = user has no 2FA configured.
+  // The encryption key is in state.config.totp_encryption_key
+  // and NEVER leaves the server.
+  string totp_secret = 23;
+
+  // ── 2FA backup codes (unused hashes only) ──────────────────
+  // HMAC-SHA256 hex of each unused backup code (using the same
+  // `totp_encryption_key` as the key). Consuming a code means
+  // removing the matching hash from this list via RMW on the
+  // user record. Remaining count = `backup_code_hashes.len()`.
+  // Empty = no backup codes left (or 2FA not enabled).
+  repeated string backup_code_hashes = 24;
+
+  // ── Per-target notification preferences (new) ─────────────
+  // Global / per-server / per-channel overrides for notification
+  // delivery. Mirrors the postgres `notification_preferences`
+  // table. Upserted via RMW on the user record (bounded list —
+  // typically < 50 entries per user). Empty = user has only the
+  // default (unmuted, desktop on).
+  repeated VdbNotificationPref notification_prefs = 25;
+
+  // DEPRECATED: use preferred_status instead. Kept for proto compat.
+  bool status_auto = 26;
+
+  // The user's explicitly chosen status preference. Only changed when
+  // the user manually selects a status (set_preferred=true on wire).
+  // Auto-idle never touches this. On reconnect, this is the status
+  // the user gets. Empty string = "online" (default).
+  // Valid: "online", "idle", "dnd", "offline"
+  string preferred_status = 27;
+}
+
+// One row of the postgres `notification_preferences` table,
+// embedded on VdbUser. `target_type` uses integer sentinels for
+// wire compactness; `target_id` is 0 for target_type = 0 (global).
+message VdbNotificationPref {
+  // 0 = global, 1 = server, 2 = channel
+  int32 target_type       = 1;
+  // 0 when target_type = 0, otherwise the server/channel id
+  int64 target_id         = 2;
+  bool muted              = 3;
+  bool desktop_enabled    = 4;
+}
+
+// Per-user preferences mirrored from postgres `users.preferences` jsonb.
+// The server parses `active_server_id` for focused-server presence
+// scoping during IDENTIFY. Anything else the client sets is preserved
+// in `extra_json_bytes` so a round trip doesn't lose data.
+//
+// Add new known fields here as the server starts parsing more from
+// preferences. The `extra_json_bytes` field is the escape hatch for
+// fields the server doesn't parse — it carries the postgres jsonb
+// value as raw UTF-8 JSON bytes (NOT proto-encoded), so the client
+// receives it byte-for-byte after a round trip.
+message VdbUserPreferences {
+  // 0 = no focused server (READY uses null in this case).
+  int64 active_server_id = 1;
+  // Reserve common preference field numbers for future server-side
+  // parsing. Fill in as needed.
+  string language = 2;
+  string theme    = 3;
+  // Opaque tail of the original jsonb object — fields the server
+  // doesn't parse but the client wants preserved.
+  bytes extra_json_bytes = 15;
+}
+
+// Mirrors the full postgres `sessions` row. Wire-encoded as the value
+// in VerdantDB's `sessions` table, keyed by big-endian session_id.
+// All metadata needed by the auth middleware + session management
+// lives here so services/session.rs can be fully VDB-backed.
+//
+// proto3 sentinels:
+//   - 0 i64 / 0 millis = unset
+//   - "" string        = unset
+message VdbSession {
+  // ── Existing (do not renumber) ────────────────────────────
+  int64 id                  = 1;
+  int64 user_id             = 2;
+  // SHA-256 hex of the raw bearer token. NEVER the plaintext token.
+  string token_hash         = 3;
+  int64 expires_at_millis   = 4;
+  bool verified             = 5;
+
+  // ── New: metadata needed to fully eliminate PG ────────────
+  string ip_address          = 6;   // last seen IP
+  string user_agent          = 7;   // UA string, may be ""
+  string device_hash         = 8;   // device fingerprint hash
+  string city               = 9;
+  string region             = 10;
+  string country            = 11;
+  string risk_level         = 12;
+  // SHA-256 hex of the single-use revoke token emailed to the user
+  // when a new-device login is detected. "" before any code is sent.
+  string revoke_token_hash  = 13;
+
+  // Verify code (for high-risk 2FA-ish email code):
+  string verify_token_hash  = 14;  // SHA-256 hex; "" = unset
+  int64 verify_expires_at_millis = 15;
+  int32 verify_attempts     = 16;
+
+  // Timestamps
+  int64 created_at_millis    = 17;
+  int64 last_used_at_millis  = 18;
+}
+
+// ─── Server / Channel / Role / Category ─────────────────────────────
+
+// Mirrors the postgres `servers` row that the READY payload uses.
+// All sentinel rules: 0 i64 = unset, "" string = unset.
+message VdbServer {
+  // ── Existing (do not renumber) ────────────────────────────
+  int64 id                = 1;
+  string name             = 2;
+  int64 owner_id          = 3;
+  string icon_url         = 4;  // raw key, NOT cdn-resolved
+  int64 deleted_at_millis = 5;
+
+  // ── New: voice + welcome screen + emoji version ──────────
+  int32 voice_bitrate          = 6;
+  int64 welcome_channel_id     = 7;   // 0 = unset
+  int64 announce_channel_id    = 8;   // 0 = unset
+  string welcome_message       = 9;   // "" = unset
+  string welcome_screen_description = 10;
+  // welcome_screen_channels is a postgres jsonb of [{id, name}, ...]
+  // shipped opaquely. The server doesn't parse it; the client does.
+  // Stored as raw bytes (the JSON serialization) so the round trip
+  // preserves it byte-for-byte. NOT a JSON-in-proto encoding choice
+  // — it's transport for an opaque client payload that postgres
+  // happens to type as jsonb.
+  bytes welcome_screen_channels_json = 11;
+  int32 emoji_version          = 12;
+  int64 created_at_millis      = 13;
+
+  // ── New: banner upload + accent color ────────────────────
+  // Both are proto3 empty-string sentinels ("" = unset).
+  // banner_url stores the raw S3 key, NOT cdn-resolved.
+  // accent_color stores a 7-char hex "#RRGGBB" when set.
+  string banner_url            = 14;
+  string accent_color          = 15;
+  // Vertical focal point of the banner (0-100). 0 = top, 50 = center,
+  // 100 = bottom. Applied client-side as object-position Y%.
+  int32 banner_offset_y        = 16;
+}
+
+// Mirrors the postgres `channels` row subset the READY payload uses.
+// Both server channels and DM channels share this message; server_id
+// = 0 means it's a DM channel (no parent server).
+message VdbChannel {
+  int64 id                = 1;
+  // 0 = DM channel, otherwise the parent server id.
+  int64 server_id         = 2;
+  // Channel type: 0 = text, 1 = dm, 2 = group_dm, 3 = voice.
+  int32 type              = 3;
+  string name             = 4;
+  string topic            = 5;
+  int32 position          = 6;
+  // 0 = uncategorized, otherwise the parent category id.
+  int64 category_id       = 7;
+  bool read_only          = 8;
+  int32 slowmode_seconds  = 9;
+
+  // ── Channel permission overrides (new) ─────────────────────
+  // Per-role allow/deny bitfield overrides applied on top of the
+  // base server-level permission merge. Mirrors the postgres
+  // `channel_permission_overrides` table. Stored inline on the
+  // channel record because the override list is small (typically
+  // 0–5 entries) and always co-accessed with the channel itself
+  // during permission resolution. Empty = no overrides.
+  repeated VdbChannelOverride overrides = 10;
+
+  // ── Pinned messages (new) ──────────────────────────────────
+  // Mirrors the postgres `pinned_messages` table. Capped at 50
+  // entries per channel (enforced at the handler). Stored inline
+  // on the channel record because pins are a small, bounded set
+  // and callers that list pins already fetch the channel for
+  // membership checks. Upserted via RMW.
+  repeated VdbPinnedMessage pinned = 11;
+}
+
+// One row of the postgres `pinned_messages` table, embedded on
+// VdbChannel. The full message body is fetched separately via
+// OP_MSG_GET when list_pins renders the response.
+message VdbPinnedMessage {
+  int64 message_id        = 1;
+  int64 pinned_by         = 2;
+  int64 pinned_at_millis  = 3;
+}
+
+// One row of the postgres `channel_permission_overrides` table,
+// embedded on VdbChannel. Exactly one entry per role_id — duplicate
+// role_ids would be a bug. Upserted via RMW on the VdbChannel record.
+message VdbChannelOverride {
+  int64 role_id = 1;
+  int64 allow   = 2;
+  int64 deny    = 3;
+}
+
+// Mirrors the postgres `invites` row. Keyed by the invite code
+// (string) in the `invites` table, with a secondary index
+// `invites_by_server` for listing a server's invites.
+message VdbInvite {
+  string code                 = 1;
+  int64 server_id             = 2;
+  int64 inviter_id            = 3;
+  // 0 = unlimited (matches postgres NULL max_uses)
+  int32 max_uses              = 4;
+  int32 uses                  = 5;
+  // 0 = never expires (matches postgres NULL expires_at)
+  int64 expires_at_millis     = 6;
+  int64 created_at_millis     = 7;
+}
+
+// Per-server blob carrying the set of live invite codes. Keyed by
+// server_id_be in VDB_TABLE_INVITES_BY_SERVER, mutated via RMW on
+// create_invite / revoke_invite. Invite codes are strings (not
+// ids) so the packed-id-list index primitive doesn't fit — this
+// is a proto-blob equivalent sized for the typical case of a few
+// active invites per server.
+message VdbInviteCodeList {
+  repeated string codes = 1;
+}
+
+// Mirrors the postgres `announcement_feeds` row. Per-feed record
+// keyed by feed_id_be in VDB_TABLE_FEEDS, with a per-server
+// packed-id-list index `feeds_by_server` for listing.
+message VdbFeed {
+  int64 id                  = 1;
+  int64 server_id           = 2;
+  string name               = 3;
+  // "" = unset (matches postgres NULL)
+  string description        = 4;
+  // 1–10 byte emoji (client-side), "" = unset
+  string icon               = 5;
+  int32 position            = 6;
+  // Empty = feed is posted-to by the @everyone default publisher
+  // set; non-empty = only these roles may publish.
+  repeated int64 publish_role_ids = 7;
+  // Empty = visible to all server members; non-empty = restricted
+  // to members holding one of these roles.
+  repeated int64 visible_role_ids = 8;
+  int64 created_at_millis   = 9;
+}
+
+// Mirrors the postgres `announcements` row. Per-announcement
+// record keyed by announcement_id_be in VDB_TABLE_ANNOUNCEMENTS
+// with a per-feed packed-id-list index for listing + pagination.
+// `content_json` is the raw UTF-8 JSON serialization of the
+// client-side announcement body (matches the postgres jsonb
+// column); the server does not parse it.
+message VdbAnnouncement {
+  int64 id                  = 1;
+  int64 feed_id             = 2;
+  int64 server_id           = 3;
+  bytes content_json        = 4;
+  // 0 = bot-posted, otherwise the human poster's user id.
+  int64 posted_by           = 5;
+  // 0 = user-posted, otherwise the bot id.
+  int64 bot_id              = 6;
+  int64 created_at_millis   = 7;
+  // 0 = never edited
+  int64 updated_at_millis   = 8;
+  // 0 = live, otherwise soft-delete timestamp. List reads filter
+  // on this field to skip tombstoned rows without needing a
+  // separate index.
+  int64 deleted_at_millis   = 9;
+}
+
+// Mirrors the postgres `bots` row. Keyed by bot_id_be in
+// VDB_TABLE_BOTS; a per-server packed-id-list index is used for
+// listing every bot scoped to a server.
+message VdbBot {
+  int64 id                = 1;
+  int64 server_id         = 2;
+  string name             = 3;
+  // "" = unset
+  string avatar_url       = 4;
+  int64 created_at_millis = 5;
+}
+
+// Mirrors the postgres `bot_tokens` row. Keyed by token_id_be in
+// VDB_TABLE_BOT_TOKENS with an additional index on the sha256
+// `token_hash` for O(1) auth lookups.
+message VdbBotToken {
+  int64 id                = 1;
+  int64 bot_id            = 2;
+  // sha256 hex — the raw bearer token is never persisted.
+  string token_hash       = 3;
+  string name             = 4;
+  int64 created_at_millis = 5;
+  // 0 = never used (matches postgres NULL last_used_at)
+  int64 last_used_at_millis = 6;
+  // 0 = live (matches postgres NULL revoked_at)
+  int64 revoked_at_millis = 7;
+}
+
+// Per-bot blob carrying the list of token ids owned by that bot.
+// Used to enforce the 10-tokens-per-bot cap, list tokens for
+// display, and cascade-delete on bot removal. Kept as a proto
+// blob (not a packed-id-list) so the same RMW pattern used for
+// invites and member roles applies.
+message VdbBotTokenIdList {
+  repeated int64 token_ids = 1;
+}
+
+// Mirrors the postgres `roles` row subset the READY payload uses.
+message VdbRole {
+  int64 id          = 1;
+  int64 server_id   = 2;
+  string name       = 3;
+  int32 color       = 4;
+  int64 permissions = 5;
+  int32 position    = 6;
+}
+
+// Mirrors the postgres `categories` row subset the READY payload uses.
+message VdbCategory {
+  int64 id        = 1;
+  int64 server_id = 2;
+  string name     = 3;
+  int32 position  = 4;
+  // proto3 empty-string sentinel ("" = unset). Stored as-is (1-8 bytes,
+  // typically 1-2 grapheme emoji).
+  string emoji    = 5;
+}
+
+// Mirrors the postgres `emojis` row the READY payload uses.
+// Custom server emojis the client renders inline. `url` is the
+// raw object key (NOT cdn::resolve'd); the client resolves.
+message VdbEmoji {
+  int64 id                = 1;
+  int64 server_id         = 2;
+  string name             = 3;
+  string url              = 4;
+  int64 created_by        = 5;
+  int64 created_at_millis = 6;  // new
+}
+
+// ─── Member roles ───────────────────────────────────────────────────
+
+// Per-user record carrying every (server_id, role_id) pair the user
+// has been assigned. Stored as a single proto blob keyed by
+// user_id_be in the `member_roles` table.
+//
+// Why a per-user blob instead of one row per (user, role) pair:
+//   - the IDENTIFY/READY consumer reads ALL of a user's role
+//     assignments in one shot — a single TABLE_GET is fastest
+//   - the postgres equivalent is `SELECT server_id, role_id FROM
+//     member_roles WHERE user_id = $1`, also returning every pair
+//   - the per-user list is small (max ~50 servers × ~10 roles
+//     each = 500 entries; typical user has < 50 entries)
+//
+// Concurrent writes (assign/remove role) are serialized through the
+// engine's atomic upsert/remove ops which RMW under one redb write
+// transaction. See OP_VDB_MEMBER_ROLES_UPSERT in the storage engine protocol.
+// src/server.rs.
+message VdbMemberRoleSet {
+  repeated VdbMemberRole entries = 1;
+}
+
+message VdbMemberRole {
+  int64 server_id = 1;
+  int64 role_id   = 2;
+}
+
+// ─── Relationships ──────────────────────────────────────────────────
+
+// Per-user record carrying every relationship edge the user has
+// (friends, incoming/outgoing requests, blocks). Stored as a single
+// proto blob keyed by user_id_be in the `relationships` table.
+//
+// Same per-user blob rationale as VdbMemberRoleSet:
+//   - the READY consumer reads ALL of a user's relationships in one
+//     shot — `SELECT * FROM relationships WHERE user_id = $1`
+//   - typical user has < 200 entries; the largest practical bound is
+//     a few thousand which still fits in a small blob
+//   - concurrent edge mutations (friend, unfriend, block) are
+//     serialized through the engine's atomic upsert/remove ops which
+//     RMW under one redb write transaction
+//
+// Mirrored fields are exactly what the READY payload's relationship
+// JSON renders (target_id, rel_type, created_at, notes,
+// nickname_color). The joined user fields (target_username,
+// target_avatar_url, target_display_name, target_status_type) are
+// NOT denormalized here — they're served by the separately mirrored
+// `users` table at READY-build time. This keeps the relationship
+// blob small and avoids cascading user-row updates into every
+// relationship that references the user.
+message VdbRelationshipSet {
+  repeated VdbRelationship entries = 1;
+}
+
+message VdbRelationship {
+  // The other side of the edge — peer user id.
+  int64 target_id = 1;
+  // postgres `relationships.type` enum: 1=friend, 2=request_sent,
+  // 3=request_received, 4=blocked. Mirrored as i32 so the wire
+  // format is fixed-width and the client can switch on it directly.
+  int32 rel_type = 2;
+  int64 created_at_millis = 3;
+  // postgres `notes` text column. "" = unset (postgres NULL becomes "").
+  string notes = 4;
+  // postgres `nickname_color` text column. "" = unset.
+  string nickname_color = 5;
+}
+
+// ─── Read states ────────────────────────────────────────────────────
+
+// Per-user record carrying every (channel_id, last_read_message_id)
+// pair. Mirrors postgres `channel_reads`. Stored as a single proto
+// blob keyed by user_id_be in the `read_states` table.
+//
+// Same per-user blob rationale as the other "by user" tables, plus
+// one extra constraint: the engine update op enforces **GREATEST
+// semantics** on `last_read_message_id` so an out-of-order ACK
+// (e.g. retried over a slow link after a newer ACK already landed)
+// can never roll the read position backwards. The engine compares
+// the incoming msg_id against the stored value and only writes
+// when strictly greater — same rule postgres enforces with
+// `GREATEST(channel_reads.last_read_message_id, $3)` in the
+// ON CONFLICT UPSERT.
+//
+// Updated atomically via OP_VDB_READ_STATES_UPDATE; the entry is
+// removed (e.g. on channel delete) via OP_VDB_READ_STATES_REMOVE.
+message VdbReadStates {
+  repeated VdbReadState entries = 1;
+}
+
+message VdbReadState {
+  int64 channel_id = 1;
+  int64 last_read_message_id = 2;
+}
+
+// ─── DM channels ────────────────────────────────────────────────────
+
+// Mirrors the postgres `dm_channels` row. Stored keyed by
+// channel_id_be in the `dm_channels` table. Unlike server channels,
+// DM channels are immutable after creation (no name/type edits) so
+// we just TABLE_PUT once and never RMW.
+//
+// Members live in a separate VdbDmMemberSet record (one per
+// channel) so member-list mutations don't have to rewrite the
+// channel metadata. The per-user "what DMs am I in" lookup is still
+// served by the existing `dm_members_by_user` packed-id-list — we
+// did not migrate it to a proto blob because the consumer only
+// needs the IDs.
+message VdbDmChannel {
+  int64 id = 1;
+  // 1 = direct DM (2 members), 2 = group DM (3-10 members).
+  int32 type = 2;
+  // Group DM display name; "" for direct DMs (which use the other
+  // user's name client-side).
+  string name = 3;
+  // Group DM owner; 0 for direct DMs.
+  int64 owner_id = 4;
+  int64 created_at_millis = 5;
+}
+
+// Per-channel member list for DM channels. Stored keyed by
+// channel_id_be in the `dm_members_by_channel` table. Each entry
+// carries the user_id, the per-DM name_color override, and the
+// joined_at timestamp.
+//
+// Mutated via:
+//   - TABLE_PUT on DM creation (full set written in one shot)
+//   - OP_VDB_DM_MEMBER_UPSERT on name_color edits (atomic RMW)
+//   - OP_VDB_DM_MEMBER_REMOVE on group-DM leave/kick (future)
+message VdbDmMemberSet {
+  repeated VdbDmMember entries = 1;
+}
+
+message VdbDmMember {
+  int64 user_id = 1;
+  // postgres `dm_members.name_color` text column. "" = unset.
+  string name_color = 2;
+  int64 joined_at_millis = 3;
+}
+
+// ─── READY composed payload ─────────────────────────────────────────
+
+// The whole READY payload assembled by the engine in one round
+// trip. OP_QUERY_READY (server.rs) reads every per-user shard the
+// IDENTIFY handler used to fan out to (servers, channels, roles,
+// categories, emojis, member_roles, relationships, read_states,
+// DMs + DM members) and packs them into this single proto message.
+//
+// Why a single composed message instead of N parallel TABLE_GETs:
+//   - The previous fan-out path was 5 + 4*N round trips (where N
+//     is the number of servers the user is in). For a typical
+//     user with 10 servers that's 45 wire round trips.
+//   - This op collapses to ONE round trip — the engine does all
+//     the per-server table_get loops inside the read-lock hold,
+//     so the caller only pays for one network RTT regardless of
+//     how many servers the user belongs to.
+//   - The wire payload is bigger but the encoding is compact
+//     (no per-record framing on the wire — one big proto blob)
+//     so the overall bytes-on-wire is smaller than N small
+//     per-record responses each with their own length-prefixed
+//     framing.
+message VdbReadyPayload {
+  // The user record itself (what query_user_by_id returns).
+  VdbUser user = 1;
+
+  // Server-scoped lists. Each `VdbServerBundle` carries one
+  // server's metadata + every per-server shard the READY payload
+  // needs (channels, roles, categories, emojis). Grouping by
+  // server (instead of flat repeated lists) means the client
+  // doesn't have to re-bucket on receipt.
+  repeated VdbServerBundle servers = 2;
+
+  // User-scoped lists.
+  repeated VdbMemberRole member_roles  = 3;
+  repeated VdbRelationship relationships = 4;
+  repeated VdbReadState read_states    = 5;
+
+  // DM channels the user is a member of, with their per-channel
+  // member sets. dm_channel_ids is implied by `dms[i].channel.id`
+  // — no separate list needed.
+  repeated VdbDmChannelBundle dms = 6;
+
+  // Joined-user records the READY JSON renders inline:
+  //
+  //   - relationship_users: one summary per relationships[i].target_id.
+  //     Required because the friends panel renders the peer's
+  //     username/avatar/display_name/status_type.
+  //   - dm_participant_users: one summary per dm_members[*].user_id
+  //     across every DM in `dms`. Required because the DM list
+  //     renders each participant's username/avatar/etc.
+  //
+  // Both lists are flat — the consumer indexes them by `id`. We
+  // do NOT denormalize the user data into the relationship /
+  // dm_member entries because it would duplicate user records
+  // that appear in multiple lists (e.g. a friend who is also a
+  // DM participant).
+  repeated VdbUserSummary relationship_users    = 7;
+  repeated VdbUserSummary dm_participant_users  = 8;
+}
+
+// One server's metadata + all per-server records the READY
+// payload renders. Built engine-side in OP_QUERY_READY.
+message VdbServerBundle {
+  VdbServer server          = 1;
+  repeated VdbChannel channels   = 2;
+  repeated VdbCategory categories = 3;
+  repeated VdbRole roles         = 4;
+  repeated VdbEmoji emojis       = 5;
+}
+
+// One DM channel + its full member set. Built engine-side from
+// dm_channels[id] + dm_members_by_channel[id].
+message VdbDmChannelBundle {
+  VdbDmChannel channel       = 1;
+  repeated VdbDmMember members = 2;
+}
+
+// Slim user record carrying just the fields the READY payload
+// renders for joined users (relationship targets, DM participants).
+// Returning the full VdbUser would inflate the wire payload by
+// 100s of bytes per user; the slim form is ~30 bytes each.
+//
+// Field set picked to match what the postgres relationships JSON
+// and dm_channels participant JSON consume — adding fields here
+// requires also adding them to the engine OP_VDB_QUERY_READY
+// composer that builds the summaries from each VdbUser record.
+message VdbUserSummary {
+  int64 id            = 1;
+  string username     = 2;
+  string display_name = 3;
+  string avatar_url   = 4;
+  string status_type  = 5;
+}
+
+// ─── Focused composers ──────────────────────────────────────────────
+
+// Response shape for OP_VDB_QUERY_RELATIONSHIPS_WITH_USERS — used
+// by the GET /api/relationships HTTP endpoint to fetch relationship
+// rows + their target user info in one round trip without paying
+// for the rest of the READY payload.
+message VdbRelationshipsWithUsers {
+  repeated VdbRelationship relationships = 1;
+  repeated VdbUserSummary users          = 2;
+}
+
+// ─── Redis → VDB persistence types ─────────────────────────────────
+//
+// These types back data that was previously Redis-only and lost on
+// every App Platform deploy. Each is stored as a proto blob in a
+// VDB key-value table.
+
+// Per-message reaction set. Stored in `reactions` table keyed by
+// msg_id (8 bytes big-endian). Mutated atomically via
+// OP_VDB_REACTION_ADD (0x3C) / OP_VDB_REACTION_REMOVE (0x3D).
+message VdbReactionSet {
+  repeated VdbReaction entries = 1;
+}
+
+message VdbReaction {
+  string emoji             = 1;
+  repeated int64 user_ids  = 2;
+}
+
+// Registration/invite code. Stored in `invite_codes` table keyed
+// by the code string bytes. Consumed atomically via TABLE_PUT.
+message VdbInviteCode {
+  string code              = 1;
+  int64 invited_by         = 2;
+  int64 created_at_millis  = 3;
+  int64 used_by            = 4;  // 0 = unused
+  int64 used_at_millis     = 5;  // 0 = unused
+}
+
+// Per-user set of invite code strings for list/delete scoping.
+message VdbInviteCodesByUser {
+  repeated string codes = 1;
+}
+
+// Single audit log entry. Stored in `audit_log` table keyed by
+// snowflake id (8 bytes big-endian).
+message VdbAuditEntry {
+  int64 id                 = 1;
+  int64 actor_id           = 2;
+  string action            = 3;
+  string target_type       = 4;
+  int64 target_id          = 5;
+  int64 server_id          = 6;  // 0 = no server scope
+  string metadata_json     = 7;  // raw JSON, "" = none
+  string ip                = 8;
+  int64 created_at_millis  = 9;
+}
+
+// Single login history entry. Stored in `login_history` table
+// keyed by snowflake id (8 bytes big-endian).
+message VdbLoginEntry {
+  int64 id                 = 1;
+  int64 user_id            = 2;  // 0 = unknown
+  int64 session_id         = 3;  // 0 = no session
+  string ip                = 4;
+  string user_agent        = 5;
+  string device_hash       = 6;
+  string city              = 7;
+  string country           = 8;
+  bool success             = 9;
+  string risk_level        = 10;
+  string failure_reason    = 11;
+  int64 created_at_millis  = 12;
+}
+
+// Single subscription event. Stored in `subscription_events` table
+// keyed by snowflake id (8 bytes big-endian).
+message VdbSubscriptionEvent {
+  int64 id                 = 1;
+  int64 user_id            = 2;
+  string event_type        = 3;
+  string stripe_event_id   = 4;
+  int32 amount_cents       = 5;
+  string metadata_json     = 6;
+  int64 created_at_millis  = 7;
+}
+
+// Attachment metadata. Stored in `attachments` table keyed by
+// attachment_id (8 bytes big-endian). Files on R2/S3.
+message VdbAttachment {
+  int64 id                 = 1;
+  int64 channel_id         = 2;
+  int64 uploader_id        = 3;
+  string filename          = 4;
+  string url               = 5;
+  string content_type      = 6;
+  int64 size               = 7;
+  string hash              = 8;
+  string scan_status       = 9;
+  int64 message_id         = 10; // 0 = not yet associated
+  int64 created_at_millis  = 11;
+}

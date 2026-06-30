@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Verdant — Join Server</title>
+<link rel="icon" href="/assets/neon-tree-small.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: #0a0f0d;
+    color: #e8efe8;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .card {
+    text-align: center;
+    max-width: 420px;
+    padding: 3rem 2rem;
+  }
+  .logo {
+    color: #10b981;
+    margin-bottom: 1.5rem;
+  }
+  h1 {
+    font-size: 1.5rem;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+  }
+  .subtitle {
+    color: #7a8f7a;
+    font-size: 0.9rem;
+    margin-bottom: 2rem;
+    line-height: 1.5;
+  }
+  .btn {
+    display: inline-block;
+    padding: 0.75rem 2rem;
+    border-radius: 0.5rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+    text-decoration: none;
+    transition: all 0.2s;
+    cursor: pointer;
+    border: none;
+  }
+  .btn-primary {
+    background: #10b981;
+    color: #fff;
+  }
+  .btn-primary:hover { background: #059669; }
+  .btn-secondary {
+    background: transparent;
+    color: #7a8f7a;
+    border: 1px solid #1a2f1a;
+    margin-left: 0.5rem;
+  }
+  .btn-secondary:hover { color: #e8efe8; border-color: #2a4f2a; }
+  .actions { margin-top: 1rem; }
+  .hint {
+    margin-top: 1.5rem;
+    font-size: 0.8rem;
+    color: #4a6f4a;
+  }
+  #status {
+    margin-top: 1rem;
+    font-size: 0.85rem;
+    color: #10b981;
+    min-height: 1.5em;
+  }
+</style>
+<link rel="stylesheet" href="/assets/site.css">
+</head>
+<body>
+<div class="card">
+  <div class="logo">
+    <img class="brand-icon" src="/assets/neon-tree-small.svg" alt="" aria-hidden="true">
+  </div>
+  <h1>You've been invited</h1>
+  <p class="subtitle">Opening Verdant to accept this invite...</p>
+  <div id="status"></div>
+  <div class="actions" id="fallback" style="display:none">
+    <a class="btn btn-primary" id="open-btn" href="#">Open Verdant</a>
+  </div>
+  <p class="hint" id="hint" style="display:none">
+    Don't have Verdant installed? Contact your server operator for access.
+  </p>
+</div>
+<script>
+  // Extract invite code from URL path: /invite/CODE. Self-host invite pages
+  // include their origin in the deep link so the desktop client redeems the
+  // invite against the owning backend instead of the active/default backend.
+  var code = location.pathname.replace(/^\/invite\//, '');
+  var deepLink = 'verdant://invite/' + encodeURIComponent(code);
+  var host = location.hostname.toLowerCase();
+  var isOfficialInviteHost = host === 'verdant.chat' || host.endsWith('.verdant.chat');
+  if (!isOfficialInviteHost && location.origin) {
+    deepLink += '?api=' + encodeURIComponent(location.origin);
+  }
+  var statusEl = document.getElementById('status');
+  var fallbackEl = document.getElementById('fallback');
+  var hintEl = document.getElementById('hint');
+  var openBtn = document.getElementById('open-btn');
+
+  openBtn.href = deepLink;
+
+  // Try to open the app via custom protocol
+  var start = Date.now();
+  window.location.href = deepLink;
+
+  // If the page is still visible after 2s, the app probably isn't installed
+  setTimeout(function() {
+    // If the browser didn't navigate away, show fallback
+    if (document.visibilityState !== 'hidden' && Date.now() - start > 1500) {
+      statusEl.textContent = '';
+      fallbackEl.style.display = '';
+      hintEl.style.display = '';
+    }
+  }, 2000);
+</script>
+</body>
+</html>

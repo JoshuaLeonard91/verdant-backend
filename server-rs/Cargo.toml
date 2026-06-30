@@ -1,0 +1,117 @@
+[package]
+name = "verdant-server"
+version = "0.1.0"
+edition = "2024"
+default-run = "verdant-server"
+
+[dependencies]
+# HTTP + WebSocket
+axum = { version = "0.8", features = ["ws", "macros", "multipart"] }
+axum-extra = { version = "0.10", features = ["typed-header"] }
+tokio = { version = "1", features = ["full"] }
+tower = { version = "0.5", features = ["timeout", "limit"] }
+tower-http = { version = "0.6", features = ["cors", "trace", "set-header", "fs"] }
+
+# Redis
+fred = { version = "10", features = ["subscriber-client", "i-scripts", "enable-native-tls"] }
+
+# PostgreSQL — primary durable store
+sqlx = { version = "0.8", default-features = false, features = [
+    "runtime-tokio",
+    "tls-rustls",
+    "postgres",
+    "derive",
+    "migrate",
+    "json",
+    "chrono",
+] }
+
+# NATS (cross-region fan-out)
+async-nats = "0.47"
+
+# Protobuf
+prost = "0.13"
+prost-types = "0.13"
+
+# Auth
+jsonwebtoken = "9"
+argon2 = "0.5"
+rand = "0.9"
+getrandom = "0.3"
+base64 = "0.22"
+
+# VerdantDB client
+rustls = { version = "0.23", features = ["ring"] }
+tokio-rustls = "0.26"
+
+# S3
+# Disable default features to drop the `rustls` feature that pulls in
+# rustls 0.21 + vulnerable rustls-webpki 0.101.x (RUSTSEC-2026-0098/-0099).
+# `default-https-client` alone uses aws-lc-based rustls via modern crates.
+aws-sdk-s3 = { version = "1", default-features = false, features = ["sigv4a", "http-1x", "default-https-client", "rt-tokio"] }
+aws-config = "1"
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+
+# WebSocket stream utilities
+futures-util = "0.3"
+
+# Utilities
+chrono = { version = "0.4", features = ["serde"] }
+dotenvy = "0.15"
+sha2 = "0.10"
+hmac = "0.12"
+hex = "0.4"
+ed25519-dalek = "2.2"
+urlencoding = "2"
+dashmap = "6"
+thiserror = "2"
+uuid = { version = "1", features = ["v4"] }
+semver = "1"
+totp-rs = { version = "5", features = ["qr", "gen_secret"] }
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json", "stream"] }
+url = "2"
+
+# Encryption (for TOTP secrets)
+aes-gcm = "0.10"
+validator = { version = "0.19", features = ["derive"] }
+aho-corasick = "1"
+http-body-util = "0.1"
+bytes = "1"
+regex = "1"
+ammonia = "4"
+rustrict = "0.7"
+decancer = "3.3"
+img-parts = "0.4"
+maxminddb = "0.27"
+
+[build-dependencies]
+prost-build = "0.13"
+
+# ─── Release optimizations ─────────────────────────────────────────
+# LTO (Link-Time Optimization): cross-crate inlining, dead code elimination.
+# codegen-units=1: single compilation unit = better optimization, slower build.
+# strip: remove debug symbols from binary (smaller image, faster startup).
+# Combined effect: ~10-20% faster runtime, ~30% smaller binary.
+[profile.release]
+lto = "thin"           # "thin" is a good balance — "fat" is slower to build
+codegen-units = 1      # Maximum optimization (slower compile, faster runtime)
+strip = true           # Strip debug symbols (smaller Docker image)
+opt-level = 3          # Maximum optimization level
+
+# Profile for `perf record` flamegraph runs. Identical to `release` but
+# keeps debug info + symbol names so `perf` resolves Rust function
+# names instead of raw addresses. Build with:
+#   cargo build --profile release-perf --bin verdant-server
+# Output at target/release-perf/verdant-server. ~80MB vs ~28MB —
+# don't deploy to prod.
+[profile.release-perf]
+inherits = "release"
+strip = false
+debug = "full"

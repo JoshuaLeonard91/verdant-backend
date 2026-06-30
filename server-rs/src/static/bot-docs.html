@@ -1,0 +1,774 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bot SDK Docs - Verdant</title>
+  <meta name="description" content="Build self-hosted Verdant bots with the @verdant/bot SDK.">
+  <meta name="theme-color" content="#060806">
+  <link rel="icon" href="/assets/neon-tree-small.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --bg: #060806;
+      --panel: #101410;
+      --panel-soft: #0b0f0c;
+      --text: #f0f4f0;
+      --text-mid: #a3aea8;
+      --text-dim: #617068;
+      --green: #10b981;
+      --green-soft: rgba(16, 185, 129, 0.12);
+      --blue: #38bdf8;
+      --purple: #a855f7;
+      --amber: #f59e0b;
+      --pink: #ec4899;
+      --rule: rgba(255, 255, 255, 0.08);
+      --code: #050705;
+      --font: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      min-height: 100vh;
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--text);
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    a { color: var(--green); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    .page {
+      max-width: 1120px;
+      margin: 0 auto;
+      padding: 0 2rem 5rem;
+    }
+
+    nav {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1.5rem;
+      padding: 2rem 0;
+    }
+
+    .logo {
+      color: var(--green);
+      font-size: 0.84rem;
+      font-weight: 800;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+    }
+    .logo:hover { text-decoration: none; opacity: 0.85; }
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 1.25rem;
+      flex-wrap: wrap;
+    }
+
+    .nav-links a {
+      color: var(--text-dim);
+      font-size: 0.8rem;
+      font-weight: 600;
+    }
+    .nav-links a:hover { color: var(--text-mid); text-decoration: none; }
+
+    .hero {
+      padding: 4.75rem 0 3rem;
+      max-width: 780px;
+    }
+
+    .eyebrow {
+      color: var(--green);
+      font-size: 0.72rem;
+      font-weight: 800;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      margin-bottom: 1rem;
+    }
+
+    h1 {
+      font-size: clamp(2.1rem, 5vw, 4rem);
+      line-height: 1.05;
+      letter-spacing: -0.04em;
+      margin-bottom: 1.25rem;
+    }
+
+    .hero p {
+      color: var(--text-mid);
+      font-size: 1rem;
+      line-height: 1.75;
+      max-width: 660px;
+    }
+
+    .quick-links {
+      display: flex;
+      gap: 0.7rem;
+      flex-wrap: wrap;
+      margin-top: 1.75rem;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 2.45rem;
+      padding: 0.65rem 1rem;
+      border-radius: 7px;
+      border: 1px solid var(--rule);
+      background: transparent;
+      color: var(--text-mid);
+      font-size: 0.84rem;
+      font-weight: 700;
+    }
+    .btn:hover { color: var(--text); border-color: var(--text-dim); text-decoration: none; }
+    .btn-primary { background: var(--green); border-color: var(--green); color: #fff; }
+    .btn-primary:hover { color: #fff; opacity: 0.9; }
+
+    hr {
+      border: 0;
+      height: 1px;
+      background: var(--rule);
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 250px;
+      gap: 3rem;
+      padding-top: 3rem;
+    }
+
+    main {
+      min-width: 0;
+    }
+
+    aside {
+      position: sticky;
+      top: 1.5rem;
+      height: fit-content;
+      border-left: 1px solid var(--rule);
+      padding-left: 1.25rem;
+    }
+
+    aside h2 {
+      color: var(--text-dim);
+      font-size: 0.72rem;
+      font-weight: 800;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      margin-bottom: 1rem;
+    }
+
+    aside a {
+      display: block;
+      color: var(--text-mid);
+      font-size: 0.82rem;
+      line-height: 1.45;
+      padding: 0.35rem 0;
+    }
+
+    section {
+      padding: 0 0 3.75rem;
+    }
+
+    h2 {
+      font-size: 1.45rem;
+      line-height: 1.2;
+      letter-spacing: -0.02em;
+      margin-bottom: 0.9rem;
+    }
+
+    h3 {
+      font-size: 1rem;
+      line-height: 1.35;
+      margin: 1.75rem 0 0.75rem;
+    }
+
+    p, li {
+      color: var(--text-mid);
+      font-size: 0.94rem;
+      line-height: 1.75;
+    }
+
+    ul, ol { margin: 0.75rem 0 1.25rem 1.2rem; }
+    li { margin: 0.3rem 0; }
+    strong { color: var(--text); font-weight: 700; }
+
+    code {
+      border-radius: 5px;
+      background: var(--green-soft);
+      color: #19e6a1;
+      font-size: 0.86em;
+      padding: 0.12rem 0.3rem;
+    }
+
+    pre {
+      overflow-x: auto;
+      border: 1px solid var(--rule);
+      border-radius: 8px;
+      background: var(--code);
+      padding: 1rem;
+      margin: 1rem 0 1.25rem;
+    }
+
+    pre code {
+      display: block;
+      background: transparent;
+      color: #f2f5f2;
+      padding: 0;
+      font-size: 0.82rem;
+      line-height: 1.7;
+      white-space: pre;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 1rem;
+      margin: 1.25rem 0;
+    }
+
+    .panel {
+      border: 1px solid var(--rule);
+      border-radius: 8px;
+      background: var(--panel-soft);
+      padding: 1rem;
+    }
+
+    .panel h3 {
+      margin-top: 0;
+      color: var(--text);
+    }
+
+    .color-chips {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 0.5rem;
+      margin: 0.9rem 0 1rem;
+    }
+
+    .color-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      min-height: 2rem;
+      border: 1px solid var(--rule);
+      border-radius: 7px;
+      background: rgba(255, 255, 255, 0.025);
+      padding: 0.35rem 0.5rem;
+      color: var(--text);
+      font-size: 0.78rem;
+      font-weight: 800;
+    }
+
+    .color-dot {
+      width: 0.72rem;
+      height: 0.72rem;
+      border-radius: 50%;
+      box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.08);
+      flex: 0 0 auto;
+    }
+
+    .color-chip span:last-child {
+      color: var(--text-mid);
+      font-size: 0.7rem;
+      font-weight: 700;
+    }
+
+    .c-default { color: #d1d5db; }
+    .c-muted { color: #9ca3af; }
+    .c-success { color: #22c55e; }
+    .c-info { color: #38bdf8; }
+    .c-warning { color: #f59e0b; }
+    .c-danger { color: #f43f5e; }
+    .c-accent { color: #14b8a6; }
+    .c-purple { color: #a855f7; }
+    .c-pink { color: #ec4899; }
+    .c-cyan { color: #06b6d4; }
+    .bg-default { background: #d1d5db; }
+    .bg-muted { background: #9ca3af; }
+    .bg-success { background: #22c55e; }
+    .bg-info { background: #38bdf8; }
+    .bg-warning { background: #f59e0b; }
+    .bg-danger { background: #f43f5e; }
+    .bg-accent { background: #14b8a6; }
+    .bg-purple { background: #a855f7; }
+    .bg-pink { background: #ec4899; }
+    .bg-cyan { background: #06b6d4; }
+
+    .rendered {
+      border: 1px solid var(--rule);
+      border-left: 4px solid var(--green);
+      border-radius: 8px;
+      background: #121613;
+      padding: 1rem;
+      margin: 1rem 0 1.25rem;
+    }
+
+    .rendered .label {
+      color: var(--text-dim);
+      font-size: 0.7rem;
+      font-weight: 800;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      margin-bottom: 0.8rem;
+    }
+
+    .rendered h3 {
+      margin: 0 0 0.45rem;
+      font-size: 1.05rem;
+    }
+
+    .rendered p {
+      margin-bottom: 0.85rem;
+      font-size: 0.9rem;
+    }
+
+    .green { color: #22c55e; font-weight: 800; }
+    .blue { color: var(--blue); font-weight: 800; }
+    .purple { color: var(--purple); font-weight: 800; }
+    .amber { color: var(--amber); font-weight: 800; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 1rem 0 1.5rem;
+      overflow: hidden;
+      border: 1px solid var(--rule);
+      border-radius: 8px;
+      font-size: 0.86rem;
+    }
+
+    th, td {
+      border-bottom: 1px solid var(--rule);
+      padding: 0.72rem 0.85rem;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      color: var(--green);
+      font-size: 0.72rem;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    td { color: var(--text-mid); line-height: 1.55; }
+    tr:last-child td { border-bottom: 0; }
+
+    .callout {
+      border-left: 3px solid var(--amber);
+      background: rgba(245, 158, 11, 0.08);
+      padding: 0.9rem 1rem;
+      margin: 1rem 0 1.25rem;
+      border-radius: 6px;
+    }
+
+    .callout p { margin: 0; }
+
+    footer {
+      display: flex;
+      justify-content: space-between;
+      gap: 1rem;
+      padding-top: 2rem;
+      color: var(--text-dim);
+      font-size: 0.75rem;
+    }
+
+    footer a { color: var(--text-dim); }
+    footer a:hover { color: var(--text-mid); }
+
+    @media (max-width: 860px) {
+      .layout { grid-template-columns: 1fr; gap: 1.5rem; }
+      aside { position: static; border-left: 0; border-top: 1px solid var(--rule); padding: 1.25rem 0 0; order: -1; }
+      aside a { display: inline-block; margin-right: 0.9rem; }
+      .grid { grid-template-columns: 1fr; }
+    }
+
+    @media (max-width: 560px) {
+      .page { padding: 0 1.25rem 4rem; }
+      nav { align-items: flex-start; flex-direction: column; }
+      .hero { padding: 3.5rem 0 2.25rem; }
+      th, td { padding: 0.6rem; }
+      footer { flex-direction: column; }
+    }
+  </style>
+  <link rel="stylesheet" href="/assets/site.css">
+</head>
+<body>
+
+<div class="page">
+  <nav>
+    <a href="/" class="logo">
+      <img class="brand-icon" src="/assets/neon-tree-small.svg" alt="" aria-hidden="true">
+      <span>Verdant</span>
+    </a>
+    <div class="nav-links">
+      <a href="/docs/bots">Bot SDK</a>
+      <a href="/status">Status</a>
+    </div>
+  </nav>
+
+  <section class="hero">
+    <p class="eyebrow">Bot SDK</p>
+    <h1>Build self-hosted bots for Verdant.</h1>
+    <p>
+      Use the TypeScript SDK to post rich feed announcements, send clean cards into text channels,
+      upload images through Verdant, and keep a bot online through the gateway when it needs to react to events.
+    </p>
+    <div class="quick-links">
+      <a class="btn btn-primary" href="#install">Install SDK</a>
+      <a class="btn" href="#examples">See Examples</a>
+      <a class="btn" href="#reference">Component Reference</a>
+    </div>
+  </section>
+
+  <hr>
+
+  <div class="layout">
+    <main>
+      <section id="install">
+        <h2>Install</h2>
+        <p>
+          The SDK is published as <code>@verdant/bot</code>. Use it from a small process that you own:
+          local Node, Bun, a VPS, a worker, or any host that can make HTTPS requests.
+        </p>
+        <pre><code>npm install @verdant/bot
+# or
+bun add @verdant/bot
+# or
+pnpm add @verdant/bot</code></pre>
+        <p>
+          Create a bot inside Verdant, mint a bot token, scope it to the server/feed/channel it needs,
+          then pass the token through an environment variable.
+        </p>
+        <div class="callout">
+          <p><strong>Do not commit bot tokens.</strong> Put tokens in your host secret store or a local <code>.env</code> file that is ignored by git.</p>
+        </div>
+      </section>
+
+      <section id="quickstart">
+        <h2>Quickstart</h2>
+        <p>
+          This posts one feed announcement. The card uses <code>format()</code> so dynamic values are escaped,
+          while selected variables can still be styled.
+        </p>
+        <pre><code>import { VerdantBot, card, channel, format, span } from "@verdant/bot";
+
+const bot = new VerdantBot({
+  token: process.env.VERDANT_BOT_TOKEN!,
+});
+
+const release = {
+  version: "0.0.252",
+  title: "Desktop updater polish",
+};
+
+await bot.feeds.postAnnouncement(
+  process.env.VERDANT_FEED_ID!,
+  card()
+    .title(format("Client {version} released", release, {
+      version: { color: "success", weight: "bold" },
+    }))
+    .description(format("{title} is live.", release, {
+      title: { color: "info" },
+    }))
+    .accent("success")
+    .richText(
+      "Launch status: ",
+      span("healthy", { color: "success", weight: "bold", italic: true }),
+      ".",
+    )
+    .chart({
+      title: "Release smoke metrics",
+      kind: "bar",
+      points: [
+        { label: "Build", value: 1 },
+        { label: "Upload", value: 1 },
+        { label: "Announcement", value: 1 },
+      ],
+    })
+    .youtube("https://www.youtube.com/watch?v=k1_ODDevbY8", "Release walkthrough")
+    .button("Discuss release", channel(process.env.VERDANT_CHANNEL_ID!)),
+  { idempotencyKey: `release-${release.version}` },
+);</code></pre>
+
+        <div class="rendered">
+          <p class="label">Rendered example</p>
+          <h3>Client <span class="green">0.0.252</span> released</h3>
+          <p><span class="blue">Desktop updater polish</span> is live.</p>
+          <a class="btn btn-primary" href="#quickstart">Discuss release</a>
+        </div>
+      </section>
+
+      <section id="examples">
+        <h2>Examples</h2>
+
+        <h3>Webhook variables</h3>
+        <p>
+          Webhook payloads are just data. Pull out the fields you want, then map them into the builder.
+          Keep static copy readable and pass dynamic values through <code>format()</code>.
+        </p>
+        <pre><code>import { card, format } from "@verdant/bot";
+
+export function releaseCard(payload: GitHubReleasePayload) {
+  const values = {
+    version: payload.release.tag_name,
+    name: payload.release.name,
+    author: payload.release.author.login,
+    sha: payload.release.target_commitish.slice(0, 8),
+  };
+
+  return card()
+    .title(format("Client {version} released", values, {
+      version: { color: "success", weight: "bold" },
+    }))
+    .description(format("{name} by {author}", values, {
+      name: { color: "info" },
+      author: { color: "muted" },
+    }))
+    .accent("success")
+    .table({
+      columns: ["Field", "Value"],
+      rows: [
+        ["Version", format("{version}", values, { version: { color: "success", weight: "bold" } })],
+        ["Commit", format("{sha}", values, { sha: { color: "info" } })],
+        ["Author", format("{author}", values, { author: { color: "muted" } })],
+      ],
+    });</code></pre>
+        <div class="rendered">
+          <p class="label">Rendered example</p>
+          <h3>Client <span class="green">0.0.252</span> released</h3>
+          <p><span class="blue">Desktop updater polish</span> by release-bot</p>
+          <table>
+            <tr><th>Field</th><th>Value</th></tr>
+            <tr><td>Version</td><td><span class="green">0.0.252</span></td></tr>
+            <tr><td>Commit</td><td><span class="blue">8f2a91c4</span></td></tr>
+            <tr><td>Author</td><td>release-bot</td></tr>
+          </table>
+        </div>
+
+        <h3>Channel cards</h3>
+        <p>
+          Feed announcements are good for long-lived posts. Text-channel cards are better for discussion,
+          rankings, status updates, and short automation notices.
+        </p>
+        <pre><code>await bot.channels.postCard(
+  process.env.VERDANT_CHANNEL_ID!,
+  card()
+    .title("Weekly ranking", { color: "purple", weight: "bold" })
+    .accent("purple")
+    .ranking("Top contributors", [
+      { label: "Josh", value: 1280, detail: "12 commits" },
+      { label: "Release Bot", value: 940, detail: "6 automations" },
+    ]),
+  { idempotencyKey: "rankings-week-2026-18" },
+);</code></pre>
+
+        <h3>Flutter feed blocks</h3>
+        <p>
+          The feed builder sends structured JSON that Flutter renders natively. Bots never send raw HTML.
+          Use <code>.richText()</code> for one editable text block with styled spans, <code>.chart()</code>
+          for bounded analytics cards, and <code>.youtube()</code> for reviewed YouTube player references.
+        </p>
+        <pre><code>import { card, invite, span } from "@verdant/bot";
+
+card()
+  .title("Programmatic feed card", { fontSize: 20, weight: "semibold" })
+  .summary("Posted through the bot REST API.", { fontSize: 14 })
+  .accent("#1ee3b6")
+  .heading("Highlights")
+  .richText("Status: ", span("healthy", { color: "success", weight: "bold" }))
+  .bullets(["Scoped token", "Backend validated", "Flutter-native preview"])
+  .numbered(["Build payload", "POST to feed", "Verify in client"])
+  .code("await bot.feeds.postAnnouncement(feedId, card);", "ts")
+  .chart({
+    title: "Audience split",
+    kind: "donut",
+    points: [
+      { label: "Desktop", value: 58 },
+      { label: "Mobile", value: 24 },
+      { label: "Web", value: 18 },
+    ],
+  })
+  .youtube("https://www.youtube.com/watch?v=k1_ODDevbY8", "Walkthrough")
+  .button("Join server", invite(process.env.VERDANT_INVITE_CODE!))
+  .footer("Generated by a bot", { fontSize: 12 });</code></pre>
+
+        <h3>Images</h3>
+        <p>
+          Upload images through Verdant first, then place the returned CDN URL in the card.
+        </p>
+        <pre><code>const image = await bot.uploads.image(
+  await Bun.file("release-badge.png").arrayBuffer(),
+  { filename: "release-badge.png", contentType: "image/png" },
+);
+
+await bot.feeds.postAnnouncement(
+  process.env.VERDANT_FEED_ID!,
+  card()
+    .title("Release badge")
+    .image(image.url, "Release badge")
+    .text("The image is served from Verdant's CDN."),
+);</code></pre>
+      </section>
+
+      <section id="gateway">
+        <h2>Gateway</h2>
+        <p>
+          Simple scheduled bots can use REST only. Connect to the bot gateway when your bot needs to appear online
+          or react to events it is allowed to receive.
+        </p>
+        <pre><code>const ws = new WebSocket("wss://api.verdant.chat/bot-gateway");
+
+ws.onopen = () =&gt; {
+  ws.send(JSON.stringify({
+    op: "IDENTIFY",
+    d: {
+      token: process.env.VERDANT_BOT_TOKEN,
+      intents: ["FEEDS", "MESSAGES"],
+      serverIds: [process.env.VERDANT_SERVER_ID],
+    },
+  }));
+};
+
+ws.onmessage = (event) =&gt; {
+  const frame = JSON.parse(event.data);
+  if (frame.op === "READY") console.log("bot online");
+  if (frame.op === "DISPATCH") console.log(frame.t, frame.d);
+};
+
+setInterval(() =&gt; {
+  if (ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ op: "PING", d: {} }));
+  }
+}, 25_000);</code></pre>
+      </section>
+
+      <section id="reference">
+        <h2>Component Reference</h2>
+        <table>
+          <tr><th>Builder API</th><th>Use</th></tr>
+          <tr><td><code>card()</code> / <code>announcement()</code></td><td>Start a new card builder.</td></tr>
+          <tr><td><code>.title(text, style?)</code></td><td>Set the card title.</td></tr>
+          <tr><td><code>.description(text, style?)</code> / <code>.summary()</code></td><td>Add short intro copy below the title.</td></tr>
+          <tr><td><code>.accent(color)</code> / <code>.color(color)</code></td><td>Set the card border/accent color.</td></tr>
+          <tr><td><code>.text(text, style?)</code></td><td>Add a plain text paragraph with optional inline style tokens.</td></tr>
+          <tr><td><code>.richText(...parts)</code></td><td>Add one Flutter-native rich text block with explicit styled spans.</td></tr>
+          <tr><td><code>.heading(text, level?, style?)</code></td><td>Add a section heading.</td></tr>
+          <tr><td><code>.quote(text, style?)</code></td><td>Add a callout block.</td></tr>
+          <tr><td><code>.bullets(items, style?)</code></td><td>Add an unordered list.</td></tr>
+          <tr><td><code>.numbered(items, style?)</code></td><td>Add an ordered list.</td></tr>
+          <tr><td><code>.table({ columns, rows })</code></td><td>Add structured rows and columns.</td></tr>
+          <tr><td><code>.code(source, language?)</code></td><td>Add a preserved code block.</td></tr>
+          <tr><td><code>.image(cdnUrl, alt?)</code></td><td>Add a Verdant CDN image.</td></tr>
+          <tr><td><code>.divider()</code></td><td>Add a section break.</td></tr>
+          <tr><td><code>.button(label, action, options?)</code></td><td>Add a clickable action button.</td></tr>
+          <tr><td><code>.chart({ title, kind, points })</code></td><td>Add a bounded analytics chart. Kinds: bar, line, donut, metrics, progress, sparkline.</td></tr>
+          <tr><td><code>.youtube(url, title?)</code></td><td>Add a reviewed YouTube video reference for the Flutter player surface.</td></tr>
+          <tr><td><code>.footer(text, style?)</code></td><td>Add small trailing context.</td></tr>
+          <tr><td><code>.build()</code> / <code>.toJSON()</code></td><td>Create the JSON payload sent to the API.</td></tr>
+        </table>
+
+        <h3>Helpers</h3>
+        <table>
+          <tr><th>Helper</th><th>Use</th></tr>
+          <tr><td><code>format(template, values, styles?)</code></td><td>Escape dynamic variables and optionally style selected variables.</td></tr>
+          <tr><td><code>richText(...parts)</code></td><td>Build safe inline-style text for title, summary, footer, or plain text blocks.</td></tr>
+          <tr><td><code>span(text, style)</code></td><td>Color, size, or weight a specific word or phrase.</td></tr>
+          <tr><td><code>escapeMarkdown(value)</code></td><td>Escape untrusted text before placing it in markdown.</td></tr>
+          <tr><td><code>trustedMarkdown(text)</code></td><td>Use text you fully control without escaping it.</td></tr>
+          <tr><td><code>themeColor(name)</code></td><td>Resolve a named color token to a hex color.</td></tr>
+          <tr><td><code>channel(id)</code></td><td>Create a button action that opens a Verdant channel.</td></tr>
+          <tr><td><code>externalUrl(url)</code></td><td>Create a button action that opens an HTTP or HTTPS link.</td></tr>
+          <tr><td><code>invite(code)</code></td><td>Create a button action for a Verdant invite code.</td></tr>
+        </table>
+
+        <h3>Styles</h3>
+        <div class="grid">
+          <div class="panel">
+            <h3>Named colors</h3>
+            <p>Use a named token for Verdant-themed cards, or pass an exact <code>#RRGGBB</code> value when a brand color matters.</p>
+            <div class="color-chips">
+              <div class="color-chip"><span class="color-dot bg-default"></span><strong class="c-default">default</strong><span>#d1d5db</span></div>
+              <div class="color-chip"><span class="color-dot bg-muted"></span><strong class="c-muted">muted</strong><span>#9ca3af</span></div>
+              <div class="color-chip"><span class="color-dot bg-success"></span><strong class="c-success">success</strong><span>#22c55e</span></div>
+              <div class="color-chip"><span class="color-dot bg-info"></span><strong class="c-info">info</strong><span>#38bdf8</span></div>
+              <div class="color-chip"><span class="color-dot bg-warning"></span><strong class="c-warning">warning</strong><span>#f59e0b</span></div>
+              <div class="color-chip"><span class="color-dot bg-danger"></span><strong class="c-danger">danger</strong><span>#f43f5e</span></div>
+              <div class="color-chip"><span class="color-dot bg-accent"></span><strong class="c-accent">accent</strong><span>#14b8a6</span></div>
+              <div class="color-chip"><span class="color-dot bg-purple"></span><strong class="c-purple">purple</strong><span>#a855f7</span></div>
+              <div class="color-chip"><span class="color-dot bg-pink"></span><strong class="c-pink">pink</strong><span>#ec4899</span></div>
+              <div class="color-chip"><span class="color-dot bg-cyan"></span><strong class="c-cyan">cyan</strong><span>#06b6d4</span></div>
+            </div>
+            <pre><code>card()
+  .accent("success")
+  .title("Release passed", { color: "success" })
+  .text("Custom brand color", { color: "#7c3aed" });</code></pre>
+          </div>
+          <div class="panel">
+            <h3>Text controls</h3>
+            <p>Use <code>size</code> values <code>xs</code>, <code>sm</code>, <code>md</code>, <code>lg</code>, <code>xl</code>. Use <code>fontSize</code> for an exact 8-48 px value. Use <code>weight</code> values <code>normal</code>, <code>medium</code>, <code>semibold</code>, <code>bold</code>, plus <code>italic</code> and <code>strikethrough</code> booleans.</p>
+          </div>
+        </div>
+      </section>
+
+      <section id="publish">
+        <h2>Publishing your bot</h2>
+        <ol>
+          <li>Create a bot in Verdant and keep its token in a secret store.</li>
+          <li>Assign the bot a server access role, then add that role to each feed's publish roles.</li>
+          <li>Mint a token with <code>announcements:write</code> and the target feed in <code>allowedFeedIds</code>.</li>
+          <li>Run your bot process anywhere that can reach <code>https://api.verdant.chat</code>.</li>
+          <li>Use REST for posting cards and the gateway only when your bot needs live events.</li>
+          <li>Use idempotency keys for webhooks, scheduled posts, and retryable jobs.</li>
+        </ol>
+        <pre><code>VERDANT_BOT_TOKEN=... \
+VERDANT_BOT_FEED_ID=... \
+VERDANT_API_URL=https://api.verdant.chat \
+bun run --filter @verdant/bot smoke:feed</code></pre>
+        <p>
+          Optional env vars are <code>VERDANT_INVITE_CODE</code>, <code>VERDANT_YOUTUBE_URL</code>,
+          and <code>VERDANT_BOT_IDEMPOTENCY_KEY</code>. The smoke script prints published IDs only,
+          never the token.
+        </p>
+        <p>
+          If token auth succeeds but the bot role is missing from the feed publish roles,
+          the API returns <code>FEED_NO_PUBLISH_PERMISSION</code>. If a channel button points
+          outside the feed's server, validation rejects the card before publishing.
+        </p>
+      </section>
+    </main>
+
+    <aside>
+      <h2>On this page</h2>
+      <a href="#install">Install</a>
+      <a href="#quickstart">Quickstart</a>
+      <a href="#examples">Examples</a>
+      <a href="#gateway">Gateway</a>
+      <a href="#reference">Component Reference</a>
+      <a href="#publish">Publishing your bot</a>
+    </aside>
+  </div>
+
+  <hr>
+
+  <footer>
+    <p>&copy; 2026 Verdant</p>
+    <a href="/privacy">Privacy Policy</a>
+  </footer>
+</div>
+
+</body>
+</html>

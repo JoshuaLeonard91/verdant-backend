@@ -1,0 +1,55 @@
+version: 2
+updates:
+  - package-ecosystem: cargo
+    directory: /server-rs
+    schedule:
+      interval: weekly
+      day: monday
+      time: "10:00"
+      timezone: America/New_York
+    open-pull-requests-limit: 5
+    groups:
+      cargo-security:
+        applies-to: security-updates
+        patterns:
+          - "*"
+      cargo-version-updates:
+        applies-to: version-updates
+        patterns:
+          - "*"
+
+  - package-ecosystem: docker
+    directory: /server-rs
+    schedule:
+      interval: weekly
+      day: monday
+      time: "10:30"
+      timezone: America/New_York
+    open-pull-requests-limit: 3
+    groups:
+      docker-security:
+        applies-to: security-updates
+        patterns:
+          - "*"
+      docker-version-updates:
+        applies-to: version-updates
+        patterns:
+          - "*"
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "11:00"
+      timezone: America/New_York
+    open-pull-requests-limit: 3
+    groups:
+      github-actions-security:
+        applies-to: security-updates
+        patterns:
+          - "*"
+      github-actions-version-updates:
+        applies-to: version-updates
+        patterns:
+          - "*"

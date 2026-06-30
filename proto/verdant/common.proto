@@ -1,0 +1,21 @@
+syntax = "proto3";
+
+package verdant;
+
+// Snowflake ID — stored as string because JS can't handle u64 natively.
+// Rust side: parse to i64, client side: treat as opaque string.
+message Snowflake {
+  string id = 1;
+}
+
+// ISO-8601 timestamp string (matches existing JSON format).
+message Timestamp {
+  string iso = 1;
+}
+
+// Reusable nullable string wrapper (proto3 has no null).
+message OptionalString {
+  oneof value {
+    string str = 1;
+  }
+}
