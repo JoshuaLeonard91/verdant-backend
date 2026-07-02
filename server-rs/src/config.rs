@@ -913,6 +913,7 @@ pub struct Config {
     pub s3_bucket: Option<String>,
     pub s3_access_key: Option<String>,
     pub s3_secret_key: Option<String>,
+    pub s3_region: Option<String>,
     pub storage_path_style: bool,
 
     // CDN (Cloudflare)
@@ -1385,6 +1386,7 @@ impl Config {
         let s3_secret_key = env::var("S3_SECRET_KEY")
             .or_else(|_| env::var("DO_SPACES_SECRET"))
             .ok();
+        let s3_region = env_optional("S3_REGION");
         let storage_configured = s3_endpoint.is_some()
             && s3_bucket.is_some()
             && s3_access_key.is_some()
@@ -1491,6 +1493,7 @@ impl Config {
             s3_bucket,
             s3_access_key,
             s3_secret_key,
+            s3_region,
             storage_path_style: env::var("STORAGE_PATH_STYLE")
                 .map(|v| v == "true")
                 .unwrap_or(false),

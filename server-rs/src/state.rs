@@ -282,6 +282,7 @@ impl AppState {
             config.s3_bucket.as_deref(),
             config.s3_access_key.as_deref(),
             config.s3_secret_key.as_deref(),
+            config.s3_region.as_deref(),
             config.storage_path_style,
         );
         if s3.is_some() {
@@ -295,6 +296,7 @@ impl AppState {
                 Some(bucket),
                 config.s3_access_key.as_deref(),
                 config.s3_secret_key.as_deref(),
+                config.s3_region.as_deref(),
                 config.storage_path_style,
             )
         });
