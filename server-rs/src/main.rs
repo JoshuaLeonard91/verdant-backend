@@ -1036,6 +1036,7 @@ async fn main() {
             .expect("sqlx migrations failed to apply");
     }
     tracing::info!("Postgres migrations applied");
+    services::field_encryption_backfill::spawn_field_encryption_backfill_task(state.clone());
     verdant_server::federation::outbox::spawn_outbox_dispatch_task(state.clone());
     verdant_server::federation::maintenance::spawn_replay_nonce_cleanup_task(state.clone());
 

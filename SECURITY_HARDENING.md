@@ -61,6 +61,16 @@ When native transport is enabled:
 Release-level acceptance should verify native transport, media boundaries,
 client publish, and server release behavior together before publication.
 
+## Self-Host Field Encryption
+
+Single-VPS self-host deployments must keep `APP_FIELD_ENCRYPTION_KEY` outside
+Postgres. The key is required for non-official instance modes and is used for
+app-level encryption of sensitive database fields as those fields are migrated.
+Do not log it, regenerate it during repair, or write it into database rows.
+
+Detailed key handling, field inventory, migration, rotation, and operator
+requirements live in `docs/SINGLE_VPS_FIELD_ENCRYPTION.md`.
+
 ## Multi-Network Client Boundary
 
 The long-term client model is a local native multiplexer, not an official
