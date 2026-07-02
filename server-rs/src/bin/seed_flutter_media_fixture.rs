@@ -663,6 +663,7 @@ fn storage_from_env() -> Option<S3Service> {
     let secret = env::var("S3_SECRET_KEY")
         .or_else(|_| env::var("DO_SPACES_SECRET"))
         .ok();
+    let region = env::var("S3_REGION").ok();
     let path_style = env::var("STORAGE_PATH_STYLE")
         .map(|value| value == "true")
         .unwrap_or(false);
@@ -671,6 +672,7 @@ fn storage_from_env() -> Option<S3Service> {
         bucket.as_deref(),
         key.as_deref(),
         secret.as_deref(),
+        region.as_deref(),
         path_style,
     )
 }

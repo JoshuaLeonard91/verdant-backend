@@ -22,18 +22,24 @@ impl S3Service {
         bucket: Option<&str>,
         key: Option<&str>,
         secret: Option<&str>,
+        region: Option<&str>,
         path_style: bool,
     ) -> Option<Self> {
         let endpoint = endpoint?;
         let bucket = bucket?;
         let key = key?;
         let secret = secret?;
+        let region = region
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(str::to_string)
+            .unwrap_or_else(|| default_region_for_endpoint(endpoint));
 
         let creds = Credentials::new(key, secret, None, None, "verdant-env");
 
         let config = aws_sdk_s3::Config::builder()
             .endpoint_url(endpoint)
-            .region(Region::new("auto"))
+            .region(Region::new(region))
             .credentials_provider(SharedCredentialsProvider::new(creds))
             .force_path_style(path_style)
             .behavior_version_latest()
@@ -218,5 +224,50 @@ impl S3Service {
 
     pub fn bucket(&self) -> &str {
         &self.bucket
+    }
+}
+
+fn default_region_for_endpoint(endpoint: &str) -> String {
+    let Ok(url) = url::Url::parse(endpoint) else {
+        return "auto".to_string();
+    };
+    let Some(host) = url.host_str() else {
+        return "auto".to_string();
+    };
+    let port = url.port_or_known_default();
+    let is_localhost = host.eq_ignore_ascii_case("localhost")
+        || host
+            .parse::<std::net::IpAddr>()
+            .map(|addr| addr.is_loopback())
+            .unwrap_or(false);
+    if is_localhost && port == Some(3900) {
+        return "garage".to_string();
+    }
+    "auto".to_string()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::default_region_for_endpoint;
+
+    #[test]
+    fn local_garage_endpoint_defaults_to_garage_region() {
+        assert_eq!(
+            default_region_for_endpoint("http://127.0.0.1:3900"),
+            "garage"
+        );
+        assert_eq!(
+            default_region_for_endpoint("http://localhost:3900"),
+            "garage"
+        );
+    }
+
+    #[test]
+    fn non_garage_s3_endpoint_keeps_auto_default() {
+        assert_eq!(
+            default_region_for_endpoint("https://example.r2.cloudflarestorage.com"),
+            "auto"
+        );
+        assert_eq!(default_region_for_endpoint("http://127.0.0.1:9000"), "auto");
     }
 }
