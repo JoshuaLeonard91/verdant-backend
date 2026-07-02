@@ -352,13 +352,17 @@ pub async fn register(
     }
 
     // Check for existing email (generic error, no enumeration).
-    if crate::services::pg::users::by_email_lower(&state.pg, &email_lower)
-        .await
-        .map_err(|e| {
-            tracing::error!(error = %e, "register: PG email check failed");
-            AppError::Internal
-        })?
-        .is_some()
+    if crate::services::pg::users::by_email_lower_with_crypto(
+        &state.pg,
+        &email_lower,
+        state.field_crypto.as_ref(),
+    )
+    .await
+    .map_err(|e| {
+        tracing::error!(error = %e, "register: PG email check failed");
+        AppError::Internal
+    })?
+    .is_some()
     {
         tracing::warn!("Register failed: email already taken");
         return Err(AppError::RegistrationFailed("Registration failed".into()));
@@ -376,23 +380,20 @@ pub async fn register(
         AppError::Internal
     })?;
 
-    sqlx::query(
-        r#"
-        INSERT INTO users (id, email, password_hash, username, display_name,
-                           username_set, email_verified, status_type,
-                           created_at_ms, updated_at_ms)
-        VALUES ($1,$2,$3,$4,$5,$6,$7,'offline',$8,$8)
-        "#,
+    crate::services::pg::users::insert_tx(
+        &mut tx,
+        crate::services::pg::users::InsertUser {
+            id: user_id,
+            email: &email_lower,
+            password_hash: &password_hash,
+            username: &temp_username,
+            display_name: None,
+            username_set: false,
+            email_verified: false,
+            now_ms: now_millis,
+        },
+        state.field_crypto.as_ref(),
     )
-    .bind(user_id)
-    .bind(&email_lower)
-    .bind(&password_hash)
-    .bind(&temp_username)
-    .bind(Option::<&str>::None)
-    .bind(false)
-    .bind(false)
-    .bind(now_millis)
-    .execute(&mut *tx)
     .await
     .map_err(|e| {
         tracing::error!(user_id, error = %e, "register: PG primary write failed");
@@ -683,12 +684,16 @@ pub async fn login(
         });
     }
 
-    let user = crate::services::pg::users::by_email_lower(&state.pg, &body.email)
-        .await
-        .map_err(|e| {
-            tracing::error!(error = %e, "login: PG by_email_lower failed");
-            AppError::Internal
-        })?;
+    let user = crate::services::pg::users::by_email_lower_with_crypto(
+        &state.pg,
+        &body.email,
+        state.field_crypto.as_ref(),
+    )
+    .await
+    .map_err(|e| {
+        tracing::error!(error = %e, "login: PG by_email_lower failed");
+        AppError::Internal
+    })?;
 
     let Some(user) = user else {
         // Timing-safe: still run password verify against dummy
@@ -1073,13 +1078,17 @@ pub async fn resend_session_code(
         return Ok(Json(json!({ "success": true })));
     }
 
-    let user = crate::services::pg::users::by_id(&state.pg, session.user_id)
-        .await
-        .map_err(|e| {
-            tracing::error!(error = %e, "resend_session_code: user read failed");
-            AppError::Internal
-        })?
-        .ok_or(AppError::TokenRevoked)?;
+    let user = crate::services::pg::users::by_id_with_crypto(
+        &state.pg,
+        session.user_id,
+        state.field_crypto.as_ref(),
+    )
+    .await
+    .map_err(|e| {
+        tracing::error!(error = %e, "resend_session_code: user read failed");
+        AppError::Internal
+    })?
+    .ok_or(AppError::TokenRevoked)?;
 
     // Generate new code (replaces old one)
     let code = session::create_verification_token(&state.pg, session.id).await?;
@@ -1156,16 +1165,20 @@ pub async fn verify_session(
             .map(|s| s.id)
     };
 
-    let user_rec = crate::services::pg::users::by_id(&state.pg, user_id)
-        .await
-        .map_err(|e| {
-            tracing::error!(error = %e, "verify_session: user read failed");
-            AppError::Internal
-        })?
-        .ok_or_else(|| {
-            tracing::error!("Session verification: user not found user_id={}", user_id);
-            AppError::NotFound("user")
-        })?;
+    let user_rec = crate::services::pg::users::by_id_with_crypto(
+        &state.pg,
+        user_id,
+        state.field_crypto.as_ref(),
+    )
+    .await
+    .map_err(|e| {
+        tracing::error!(error = %e, "verify_session: user read failed");
+        AppError::Internal
+    })?
+    .ok_or_else(|| {
+        tracing::error!("Session verification: user not found user_id={}", user_id);
+        AppError::NotFound("user")
+    })?;
 
     let access_token = generate_access_token(user_id, &state.config.jwt_secret, session_id)?;
 
@@ -1243,13 +1256,17 @@ pub async fn login_2fa(
     }
 
     // Fetch user with TOTP secret.
-    let user_row = crate::services::pg::users::by_id(&state.pg, user_id)
-        .await
-        .map_err(|e| {
-            tracing::error!(error = %e, "login_2fa: PG user read failed");
-            AppError::Internal
-        })?
-        .ok_or(AppError::Internal)?;
+    let user_row = crate::services::pg::users::by_id_with_crypto(
+        &state.pg,
+        user_id,
+        state.field_crypto.as_ref(),
+    )
+    .await
+    .map_err(|e| {
+        tracing::error!(error = %e, "login_2fa: PG user read failed");
+        AppError::Internal
+    })?
+    .ok_or(AppError::Internal)?;
 
     let totp_secret_opt = user_row.totp_secret.clone();
     if totp_secret_opt.as_deref().map_or(true, str::is_empty) {

@@ -10,6 +10,7 @@ use crate::services::broadcast::BroadcastService;
 use crate::services::content_scanner::{self, ContentScanner};
 use crate::services::email::EmailService;
 use crate::services::feature_flags::FeatureFlagService;
+use crate::services::field_crypto::FieldEncryptionKeyring;
 use crate::services::message_cache::MessageCache;
 use crate::services::permissions::PermissionCache;
 use crate::services::s3::S3Service;
@@ -136,6 +137,7 @@ pub struct AppStateInner {
     /// under row-level security with a transaction-local `app.user_id`.
     pub pg_app: Option<sqlx::PgPool>,
     pub config: AppConfig,
+    pub field_crypto: Option<FieldEncryptionKeyring>,
     pub snowflake: SnowflakeGenerator,
     pub ws: Arc<ConnectionManager>,
     pub bot_gateway: Arc<BotGatewayManager>,
@@ -239,6 +241,14 @@ impl AppState {
             );
         }
 
+        let field_crypto = config.app_field_encryption_key.as_ref().map(|secret| {
+            FieldEncryptionKeyring::from_hex_secret(secret, 1)
+                .expect("APP_FIELD_ENCRYPTION_KEY was validated during config load")
+        });
+        if field_crypto.is_some() {
+            tracing::info!("Application field encryption initialized");
+        }
+
         // Generate a random node ID for Redis pub/sub deduplication
         let node_id = format!("{:016x}", rand::random::<u64>());
         tracing::info!(node_id = %node_id, "Instance node ID generated");
@@ -340,6 +350,7 @@ impl AppState {
                 pg,
                 pg_app,
                 config,
+                field_crypto,
                 snowflake,
                 ws,
                 bot_gateway,

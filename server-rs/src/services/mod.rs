@@ -17,6 +17,8 @@ pub mod email;
 pub mod email_validation;
 pub mod entitlements;
 pub mod feature_flags;
+pub mod field_crypto;
+pub mod field_encryption_backfill;
 pub mod geoip;
 pub mod hash_service;
 pub mod hmac_sign;

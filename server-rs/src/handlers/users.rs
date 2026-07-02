@@ -26,7 +26,7 @@ use crate::ws::{events, topics};
 
 /// Load the user record from PG or return NotFound.
 async fn load_pg_user(state: &AppState, user_id: i64) -> AppResult<UserRow> {
-    crate::services::pg::users::by_id(&state.pg, user_id)
+    crate::services::pg::users::by_id_with_crypto(&state.pg, user_id, state.field_crypto.as_ref())
         .await
         .map_err(|e| {
             tracing::error!(user_id, error = %e, "users: PG read failed");
@@ -247,7 +247,13 @@ pub async fn change_email(
     }
 
     // Check new email uniqueness — case-insensitive lookup against PG.
-    match crate::services::pg::users::by_email_lower(&state.pg, &new_email).await {
+    match crate::services::pg::users::by_email_lower_with_crypto(
+        &state.pg,
+        &new_email,
+        state.field_crypto.as_ref(),
+    )
+    .await
+    {
         Ok(Some(existing)) if existing.id != user_id.0 => {
             return Err(AppError::WithCode {
                 status: StatusCode::BAD_REQUEST,
@@ -362,7 +368,7 @@ pub async fn confirm_email_change(
     }
 
     // Swap the email + mark verified in one PG update.
-    crate::services::pg::users::update(
+    crate::services::pg::users::update_with_crypto(
         &state.pg,
         user_id.0,
         crate::services::pg::users::UpdateUser {
@@ -370,6 +376,7 @@ pub async fn confirm_email_change(
             email_verified: Some(true),
             ..Default::default()
         },
+        state.field_crypto.as_ref(),
     )
     .await
     .map_err(|e| {

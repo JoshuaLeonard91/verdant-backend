@@ -808,6 +808,57 @@ fn validate_livekit_api_secret(secret: &str) {
     );
 }
 
+fn validate_app_field_encryption_key(secret: &str) {
+    let trimmed = secret.trim();
+    let lower = trimmed.to_ascii_lowercase();
+    let weak_patterns = [
+        "change-me",
+        "change_me",
+        "changeme",
+        "replace-me",
+        "replace_me",
+        "replace-with",
+        "replace_with",
+        "replacewith",
+        "placeholder",
+        "example",
+        "sample",
+        "default",
+        "todo",
+    ];
+
+    assert!(
+        !weak_patterns.iter().any(|pattern| lower.contains(pattern)),
+        "APP_FIELD_ENCRYPTION_KEY appears to be a placeholder; generate a cryptographically random 32-byte hex secret"
+    );
+
+    let bytes = hex::decode(trimmed)
+        .unwrap_or_else(|_| panic!("APP_FIELD_ENCRYPTION_KEY must be a 64-character hex value"));
+    assert!(
+        bytes.len() == 32,
+        "APP_FIELD_ENCRYPTION_KEY must be a 64-character hex value"
+    );
+    assert!(
+        bytes.iter().any(|byte| *byte != 0)
+            && !trimmed.as_bytes().windows(2).all(|pair| pair[0] == pair[1]),
+        "APP_FIELD_ENCRYPTION_KEY appears to be a placeholder; generate a cryptographically random 32-byte hex secret"
+    );
+}
+
+fn resolve_app_field_encryption_key(
+    instance_mode: InstanceMode,
+    raw_secret: Option<String>,
+) -> Option<String> {
+    let Some(secret) = raw_secret else {
+        if instance_mode == InstanceMode::Official {
+            return None;
+        }
+        panic!("APP_FIELD_ENCRYPTION_KEY is required for self-hosted instances");
+    };
+    validate_app_field_encryption_key(&secret);
+    Some(secret.trim().to_string())
+}
+
 #[derive(Debug, Clone)]
 pub struct Config {
     pub port: u16,
@@ -824,6 +875,7 @@ pub struct Config {
     /// Sqlx pool max connections per server-rs instance.
     pub database_pool_size: u32,
     pub jwt_secret: String,
+    pub app_field_encryption_key: Option<String>,
     pub cors_origins: Vec<String>,
     pub min_client_version: String,
     /// When false, signup still requires a single-use registration key.
@@ -1276,6 +1328,10 @@ impl Config {
             .unwrap_or_else(|| "official".to_string())
             .parse::<InstanceMode>()
             .unwrap_or_else(|e| panic!("{e}"));
+        let app_field_encryption_key = resolve_app_field_encryption_key(
+            instance_mode,
+            env_optional("APP_FIELD_ENCRYPTION_KEY"),
+        );
         validate_database_app_role_split(instance_mode, &database_url, database_app_url.as_deref());
 
         let instance_public_url = first_env(&["INSTANCE_PUBLIC_URL", "PUBLIC_URL", "FRONTEND_URL"])
@@ -1391,6 +1447,7 @@ impl Config {
             migration_database_url,
             database_pool_size,
             jwt_secret,
+            app_field_encryption_key,
             cors_origins,
             min_client_version: env::var("MIN_CLIENT_VERSION")
                 .unwrap_or_else(|_| "0.0.293".to_string()),
@@ -1583,8 +1640,9 @@ mod tests {
         default_image_upload_capability, email_verification_required_for,
         normalize_account_link_official_api_origin, normalize_cdn_base_url,
         normalize_certificate_sha256_pin, parse_certificate_sha256_pins, parse_livekit_nodes,
-        parse_trusted_hosts, resolve_billing_mode, resolve_capabilities, resolve_email_provider,
-        resolve_loadtest_secret, resolve_stripe_config, validate_database_app_role_split,
+        parse_trusted_hosts, resolve_app_field_encryption_key, resolve_billing_mode,
+        resolve_capabilities, resolve_email_provider, resolve_loadtest_secret,
+        resolve_stripe_config, validate_app_field_encryption_key, validate_database_app_role_split,
         validate_federation_link_key_pem, validate_federation_s2s_key_id,
         validate_federation_s2s_signing_seed, validate_jwt_secret, validate_livekit_api_secret,
         validate_optional_admin_secret, validate_upload_policy_requirements,
@@ -1640,6 +1698,46 @@ mod tests {
     #[should_panic(expected = "LIVEKIT_API_SECRET must be at least 32 characters")]
     fn livekit_api_secret_rejects_short_value() {
         validate_livekit_api_secret("short-livekit-secret");
+    }
+
+    #[test]
+    fn app_field_encryption_key_accepts_random_32_byte_hex_value() {
+        validate_app_field_encryption_key(
+            "b55f7f6657f90b0771c71f56ab29a70fd23c9e247a57de9532a53bc55790d251",
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "APP_FIELD_ENCRYPTION_KEY must be a 64-character hex value")]
+    fn app_field_encryption_key_rejects_short_value() {
+        validate_app_field_encryption_key("short-field-key");
+    }
+
+    #[test]
+    #[should_panic(expected = "APP_FIELD_ENCRYPTION_KEY must be a 64-character hex value")]
+    fn app_field_encryption_key_rejects_non_hex_value() {
+        validate_app_field_encryption_key(
+            "zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz",
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "APP_FIELD_ENCRYPTION_KEY appears to be a placeholder")]
+    fn app_field_encryption_key_rejects_placeholder_value() {
+        validate_app_field_encryption_key(
+            "0000000000000000000000000000000000000000000000000000000000000000",
+        );
+    }
+
+    #[test]
+    fn official_instance_allows_missing_app_field_encryption_key() {
+        assert!(resolve_app_field_encryption_key(InstanceMode::Official, None).is_none());
+    }
+
+    #[test]
+    #[should_panic(expected = "APP_FIELD_ENCRYPTION_KEY is required for self-hosted instances")]
+    fn self_host_instance_requires_app_field_encryption_key() {
+        let _ = resolve_app_field_encryption_key(InstanceMode::Federated, None);
     }
 
     #[test]

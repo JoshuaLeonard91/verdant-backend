@@ -64,13 +64,17 @@ pub async fn request_password_reset(
     let email = body.email.to_lowercase();
 
     // Find user by email via PG.
-    let user_id = crate::services::pg::users::by_email_lower(&state.pg, &email)
-        .await
-        .map_err(|e| {
-            tracing::error!(error = %e, "request_password_reset: PG lookup failed");
-            AppError::Internal
-        })?
-        .map(|u| u.id);
+    let user_id = crate::services::pg::users::by_email_lower_with_crypto(
+        &state.pg,
+        &email,
+        state.field_crypto.as_ref(),
+    )
+    .await
+    .map_err(|e| {
+        tracing::error!(error = %e, "request_password_reset: PG lookup failed");
+        AppError::Internal
+    })?
+    .map(|u| u.id);
 
     if let Some(uid) = user_id {
         // Generate secure random token.
