@@ -1124,6 +1124,46 @@ async fn main() {
         .route("/health", get(health))
         .route("/api/instance", get(handlers::instance::get_instance))
         .route(
+            "/avatars/{*key}",
+            get(handlers::uploads::get_public_avatar_media),
+        )
+        .route(
+            "/banners/{*key}",
+            get(handlers::uploads::get_public_banner_media),
+        )
+        .route(
+            "/member-list-banners/{*key}",
+            get(handlers::uploads::get_public_member_list_banner_media),
+        )
+        .route(
+            "/server-icons/{*key}",
+            get(handlers::uploads::get_public_server_icon_media),
+        )
+        .route(
+            "/server-banners/{*key}",
+            get(handlers::uploads::get_public_server_banner_media),
+        )
+        .route(
+            "/bot-avatars/{*key}",
+            get(handlers::uploads::get_public_bot_avatar_media),
+        )
+        .route(
+            "/bot-banners/{*key}",
+            get(handlers::uploads::get_public_bot_banner_media),
+        )
+        .route(
+            "/bot-uploads/{*key}",
+            get(handlers::uploads::get_public_bot_upload_media),
+        )
+        .route(
+            "/emojis/{*key}",
+            get(handlers::uploads::get_public_emoji_media),
+        )
+        .route(
+            "/stickers/{*key}",
+            get(handlers::uploads::get_public_sticker_media),
+        )
+        .route(
             "/api/federation/manifest",
             get(handlers::federation::manifest),
         )

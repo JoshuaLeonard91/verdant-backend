@@ -48,6 +48,7 @@ const MAX_BOT_IMAGE_SIZE: usize = 10 * 1024 * 1024; // 10MB
 const CUSTOM_EXPRESSION_IMPORT_TIMEOUT_SECS: u64 = 8;
 
 const ALLOWED_IMAGE_EXTENSIONS: &[&str] = &["png", "jpg", "jpeg", "gif", "webp"];
+const PUBLIC_MEDIA_CACHE_CONTROL: &str = "public, max-age=31536000, immutable";
 
 static CUSTOM_EXPRESSION_IMPORT_CLIENT: LazyLock<reqwest::Client> = LazyLock::new(|| {
     reqwest::Client::builder()
@@ -118,6 +119,98 @@ fn content_type_for_image_ext(ext: &str) -> &'static str {
         _ => "image/png",
     }
 }
+
+fn public_media_storage_key(prefix: &'static str, path: &str) -> Option<(String, &'static str)> {
+    if !matches!(
+        prefix,
+        "avatars"
+            | "banners"
+            | "member-list-banners"
+            | "server-icons"
+            | "server-banners"
+            | "bot-avatars"
+            | "bot-banners"
+            | "bot-uploads"
+            | "emojis"
+            | "stickers"
+    ) {
+        return None;
+    }
+    if path.is_empty()
+        || path.len() > 512
+        || path.starts_with('/')
+        || path.contains('\\')
+        || path.contains('\0')
+        || path
+            .split('/')
+            .any(|segment| matches!(segment, "" | "." | ".."))
+    {
+        return None;
+    }
+
+    let ext = path.rsplit('.').next()?.to_ascii_lowercase();
+    if !ALLOWED_IMAGE_EXTENSIONS.contains(&ext.as_str()) {
+        return None;
+    }
+
+    Some((format!("{prefix}/{path}"), content_type_for_image_ext(&ext)))
+}
+
+async fn get_public_media_from_prefix(
+    state: AppState,
+    prefix: &'static str,
+    path: String,
+) -> AppResult<Response> {
+    let (key, content_type) =
+        public_media_storage_key(prefix, &path).ok_or(AppError::NotFound("media"))?;
+    let s3 = state.s3.as_ref().ok_or(AppError::NotFound("media"))?;
+    let bytes = s3.get_object_bytes(&key).await.map_err(|_| {
+        tracing::warn!(
+            key_class = storage_key_log_class(&key),
+            "public_media: storage read failed"
+        );
+        AppError::NotFound("media")
+    })?;
+
+    let content_len = bytes.len();
+    let mut response = Response::new(Body::from(bytes));
+    let headers = response.headers_mut();
+    headers.insert(header::CONTENT_TYPE, HeaderValue::from_static(content_type));
+    headers.insert(
+        header::CACHE_CONTROL,
+        HeaderValue::from_static(PUBLIC_MEDIA_CACHE_CONTROL),
+    );
+    headers.insert(
+        "x-content-type-options",
+        HeaderValue::from_static("nosniff"),
+    );
+    if let Ok(value) = HeaderValue::from_str(&content_len.to_string()) {
+        headers.insert(header::CONTENT_LENGTH, value);
+    }
+    Ok(response)
+}
+
+macro_rules! public_media_handler {
+    ($name:ident, $prefix:literal) => {
+        pub async fn $name(
+            State(state): State<AppState>,
+            Path(path): Path<String>,
+        ) -> AppResult<Response> {
+            get_public_media_from_prefix(state, $prefix, path).await
+        }
+    };
+}
+
+public_media_handler!(get_public_avatar_media, "avatars");
+public_media_handler!(get_public_banner_media, "banners");
+public_media_handler!(get_public_member_list_banner_media, "member-list-banners");
+public_media_handler!(get_public_server_icon_media, "server-icons");
+public_media_handler!(get_public_server_banner_media, "server-banners");
+public_media_handler!(get_public_bot_avatar_media, "bot-avatars");
+public_media_handler!(get_public_bot_banner_media, "bot-banners");
+public_media_handler!(get_public_bot_upload_media, "bot-uploads");
+public_media_handler!(get_public_emoji_media, "emojis");
+public_media_handler!(get_public_sticker_media, "stickers");
 
 fn canonical_custom_expression_ext(ext: &str) -> String {
     match ext {
@@ -909,6 +1002,7 @@ fn storage_key_log_class(key: &str) -> &'static str {
         "bot-images" => "bot_image",
         "bot-avatars" => "bot_avatar",
         "bot-banners" => "bot_banner",
+        "bot-uploads" => "bot_upload",
         "member-list-banners" => "member_list_banner",
         "server-icons" => "server_icon",
         "server-banners" => "server_banner",
@@ -1119,6 +1213,35 @@ mod tests {
             storage_key_log_class("stickers/123/456.webp/extra"),
             "sticker"
         );
+    }
+
+    #[test]
+    fn public_media_storage_key_accepts_only_public_image_prefixes() {
+        assert_eq!(
+            public_media_storage_key("avatars", "123/456.webp"),
+            Some(("avatars/123/456.webp".to_string(), "image/webp"))
+        );
+        assert_eq!(
+            public_media_storage_key("banners", "123/456.GIF"),
+            Some(("banners/123/456.GIF".to_string(), "image/gif"))
+        );
+        assert_eq!(
+            public_media_storage_key("stickers", "by-hash/abc123.png"),
+            Some(("stickers/by-hash/abc123.png".to_string(), "image/png"))
+        );
+        assert_eq!(
+            storage_key_log_class("bot-uploads/123/456.webp"),
+            "bot_upload"
+        );
+
+        assert_eq!(
+            public_media_storage_key("attachments", "123/456.webp"),
+            None
+        );
+        assert_eq!(public_media_storage_key("avatars", "../456.webp"), None);
+        assert_eq!(public_media_storage_key("avatars", "123//456.webp"), None);
+        assert_eq!(public_media_storage_key("avatars", "123/456.svg"), None);
+        assert_eq!(public_media_storage_key("avatars", "123\\456.webp"), None);
     }
 
     #[test]

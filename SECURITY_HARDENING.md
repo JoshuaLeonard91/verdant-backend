@@ -244,6 +244,11 @@ This boundary applies to both official and self-host deployments:
 - Public object/CDN/proxy rules may expose profile, server, bot, emoji, and sticker
   object prefixes. Embed or announcement images must stay on explicitly
   approved origins and must not expand the object-storage prefix allowlist.
+- Self-host deployments without a separate `CDN_BASE_URL` may expose those same
+  public media prefixes through the API origin. That API-origin route must be an
+  explicit allowlist for profile, server, bot, emoji, and sticker image prefixes
+  only; it must reject traversal, active formats, unknown prefixes, and
+  `attachments/*`.
 - Custom emoji/sticker dedupe is exact canonical-byte dedupe only. Store
   SHA-256 hashes, metadata, and storage keys in Postgres; keep raw bytes in
   object storage, and only delete shared public objects after the final catalog
