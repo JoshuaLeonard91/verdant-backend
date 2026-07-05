@@ -2037,6 +2037,32 @@ mod tests {
     }
 
     #[test]
+    fn livekit_configuration_enables_self_host_voice_capability_only_by_default() {
+        let capabilities = resolve_capabilities(
+            InstanceMode::Standalone,
+            true,
+            true,
+            UploadPolicy::OperatorManaged,
+        );
+
+        assert!(capabilities.voice_chat);
+        assert!(!capabilities.video_streaming);
+    }
+
+    #[test]
+    fn livekit_configuration_does_not_enable_official_video_streaming_by_default() {
+        let capabilities = resolve_capabilities(
+            InstanceMode::Official,
+            true,
+            true,
+            UploadPolicy::OperatorManaged,
+        );
+
+        assert!(capabilities.voice_chat);
+        assert!(!capabilities.video_streaming);
+    }
+
+    #[test]
     fn official_image_upload_capability_defaults_to_off() {
         assert!(!default_image_upload_capability(
             InstanceMode::Official,

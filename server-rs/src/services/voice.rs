@@ -900,6 +900,8 @@ struct LiveKitVideoGrant {
     room_admin: bool,
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     can_publish: bool,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    can_publish_sources: Vec<&'static str>,
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     can_subscribe: bool,
     #[serde(skip_serializing_if = "is_false")]
@@ -916,11 +918,22 @@ pub fn generate_livekit_token(
     api_secret: &str,
     room_name: &str,
     participant_identity: &str,
+    allow_microphone: bool,
+    allow_screen_share: bool,
 ) -> Result<String, String> {
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map_err(|e| e.to_string())?
         .as_secs();
+
+    let mut can_publish_sources = Vec::new();
+    if allow_microphone {
+        can_publish_sources.push("microphone");
+    }
+    if allow_screen_share {
+        can_publish_sources.push("screen_share");
+    }
+    let can_publish = !can_publish_sources.is_empty();
 
     let claims = LiveKitClaims {
         iss: api_key.to_string(),
@@ -934,7 +947,8 @@ pub fn generate_livekit_token(
             room_create: false,
             room_list: false,
             room_admin: false,
-            can_publish: true,
+            can_publish,
+            can_publish_sources,
             can_subscribe: true,
             can_publish_data: false,
         },
@@ -964,6 +978,7 @@ fn generate_service_token(api_key: &str, api_secret: &str) -> Result<String, Str
             room_list: true,
             room_admin: true,
             can_publish: false,
+            can_publish_sources: Vec::new(),
             can_subscribe: false,
             can_publish_data: false,
         },
@@ -1025,10 +1040,11 @@ pub async fn create_livekit_room(
 #[cfg(test)]
 mod tests {
     use super::{
-        LiveKitNodeConfig, livekit_hash_index, livekit_node_from_placement_value,
-        livekit_nodes_from_registry_records, livekit_room_name, livekit_room_placement_for_node,
-        livekit_weighted_index,
+        LiveKitNodeConfig, generate_livekit_token, livekit_hash_index,
+        livekit_node_from_placement_value, livekit_nodes_from_registry_records, livekit_room_name,
+        livekit_room_placement_for_node, livekit_weighted_index,
     };
+    use base64::Engine as _;
     use std::collections::{HashMap, HashSet};
 
     fn node(name: &str, weight: u32) -> LiveKitNodeConfig {
@@ -1047,6 +1063,47 @@ mod tests {
     }
 
     #[test]
+    fn livekit_join_token_scopes_publish_sources_to_capability() {
+        let listen_only = generate_livekit_token("key", "secret", "room", "user", false, false)
+            .expect("listen-only token should encode");
+        let audio_only = generate_livekit_token("key", "secret", "room", "user", true, false)
+            .expect("audio token should encode");
+        let screen_share = generate_livekit_token("key", "secret", "room", "user", true, true)
+            .expect("screen share token should encode");
+
+        let listen_payload = decode_jwt_payload(&listen_only);
+        let audio_payload = decode_jwt_payload(&audio_only);
+        let screen_payload = decode_jwt_payload(&screen_share);
+
+        assert_eq!(
+            listen_payload["video"].get("canPublish"),
+            None,
+            "listen-only tokens should not include publish permission"
+        );
+        assert_eq!(
+            listen_payload["video"].get("canPublishSources"),
+            None,
+            "listen-only tokens should not include publish sources"
+        );
+        assert_eq!(
+            audio_payload["video"]["canPublish"],
+            serde_json::json!(true)
+        );
+        assert_eq!(
+            audio_payload["video"]["canPublishSources"],
+            serde_json::json!(["microphone"])
+        );
+        assert_eq!(
+            screen_payload["video"]["canPublish"],
+            serde_json::json!(true)
+        );
+        assert_eq!(
+            screen_payload["video"]["canPublishSources"],
+            serde_json::json!(["microphone", "screen_share"])
+        );
+    }
+
+    #[test]
     fn livekit_weighted_index_respects_weights() {
         let nodes = vec![node("a", 2), node("b", 1)];
         assert_eq!(livekit_weighted_index(&nodes, 0), 0);
@@ -1062,6 +1119,17 @@ mod tests {
         let second = livekit_hash_index(&nodes, "verdant:1:2");
         assert_eq!(first, second);
         assert!(first < nodes.len());
+    }
+
+    fn decode_jwt_payload(token: &str) -> serde_json::Value {
+        let payload = token
+            .split('.')
+            .nth(1)
+            .expect("token should contain a payload");
+        let bytes = base64::engine::general_purpose::URL_SAFE_NO_PAD
+            .decode(payload)
+            .expect("payload should be base64url encoded");
+        serde_json::from_slice(&bytes).expect("payload should be JSON")
     }
 
     #[test]

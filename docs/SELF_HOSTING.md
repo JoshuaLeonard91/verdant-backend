@@ -93,14 +93,9 @@ Expected standalone/no-scanner shape:
 status fields. Scanner API keys, mock hash lists, bucket names, object keys, and
 other secrets are never exposed through this endpoint.
 
-`security.certificatePins` is advisory public metadata for operators and
-diagnostics. It can be populated from the process environment with
-`INSTANCE_CERT_SHA256_PINS` as comma-separated certificate SHA-256 fingerprints
-in 64-character hex form, with `VERDANT_CERT_SHA256_PINS` and
-`VERDANT_OFFICIAL_CERT_SHA256_PINS` accepted as aliases. Clients must not use
-this self-reported endpoint to bootstrap first-contact trust; enforceable
-pinning still has to be configured in the client build/run environment before
-the first request to the backend.
+Desktop clients use normal platform TLS certificate validation. Self-hosted
+operators should use a publicly trusted certificate, such as one issued by
+Caddy/Let's Encrypt, and do not need to distribute certificate pins to clients.
 
 ## Federation And Discovery Status
 
@@ -139,7 +134,7 @@ CDN_BASE_URL=https://your-domain.example
 
 Message attachments are uploaded first, then claimed when the message is created. The server only links pending attachments uploaded by the same user in the same channel, so an attachment ID from another channel, another account, or an already-sent message is rejected. Attachment URLs returned to clients use `/api/media/attachments/{id}` and require the viewer to be authenticated and able to view the channel or DM. Do not expose raw `attachments/*` object paths through Caddy, a bucket website, or a public CDN rule; object/CDN public media paths should be limited to profile, server, bot, emoji, and sticker assets. The protected URL shape requires a compatible client that fetches attachment blobs through authenticated REST/native transport; deploy the compatible client before or alongside the `server-rs` cutover.
 
-The desktop client does not keep broad `img-src https:` in the static Tauri CSP. Message attachments are fetched through authenticated REST/native transport and rendered as app-owned `blob:` URLs. Public profile, server, bot, emoji, sticker, Klipy image, YouTube thumbnail, and announcement images are fetched by the Rust native public media proxy, validated against the active backend API/public/CDN origins from `/api/instance` plus pinned official media hosts, and then rendered as app-owned `blob:` URLs. Self-host operators may set `CDN_BASE_URL` to the public origin that serves profile/server/bot/emoji/sticker keys. When `CDN_BASE_URL` is unset, the backend API origin serves only the approved public media prefixes listed below. Raw `attachments/*` keys must remain private and must not be served by public CDN, Caddy, bucket, or API-origin public-media rules.
+The desktop client does not keep broad `img-src https:` in the static Tauri CSP. Message attachments are fetched through authenticated REST/native transport and rendered as app-owned `blob:` URLs. Public profile, server, bot, emoji, sticker, Klipy image, YouTube thumbnail, and announcement images are fetched by the Rust native public media proxy, validated against the active backend API/public/CDN origins from `/api/instance` plus approved official media hosts, and then rendered as app-owned `blob:` URLs. Self-host operators may set `CDN_BASE_URL` to the public origin that serves profile/server/bot/emoji/sticker keys. When `CDN_BASE_URL` is unset, the backend API origin serves only the approved public media prefixes listed below. Raw `attachments/*` keys must remain private and must not be served by public CDN, Caddy, bucket, or API-origin public-media rules.
 
 The desktop client also keeps `media-src` narrow. Current direct video playback
 is limited to app/blob/local development and pinned Klipy clip hosts; self-host

@@ -175,6 +175,15 @@ pub async fn voice_join(
         Some(bits::CONNECT),
     )
     .await?;
+    let can_speak = match state
+        .permissions
+        .check_channel_permission(user_id.0, channel_id, server_id, bits::SPEAK)
+        .await
+    {
+        Ok(()) => true,
+        Err(AppError::MissingPermission) => false,
+        Err(err) => return Err(err),
+    };
 
     // Generate LiveKit token
     let lk_api_key = state.config.livekit_api_key.as_deref().unwrap();
@@ -202,6 +211,8 @@ pub async fn voice_join(
         lk_api_secret,
         &room_name,
         &user_id.0.to_string(),
+        can_speak,
+        can_speak && state.config.local_capabilities.video_streaming,
     )
     .map_err(|e| {
         tracing::error!("Failed to generate LiveKit token: {e}");
