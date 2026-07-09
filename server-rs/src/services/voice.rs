@@ -932,6 +932,7 @@ pub fn generate_livekit_token(
     }
     if allow_screen_share {
         can_publish_sources.push("screen_share");
+        can_publish_sources.push("screen_share_audio");
     }
     let can_publish = !can_publish_sources.is_empty();
 
@@ -1099,7 +1100,7 @@ mod tests {
         );
         assert_eq!(
             screen_payload["video"]["canPublishSources"],
-            serde_json::json!(["microphone", "screen_share"])
+            serde_json::json!(["microphone", "screen_share", "screen_share_audio"])
         );
     }
 
